@@ -1,1 +1,1 @@
-# oculus
+# Oculus — a lightweight C++ edge vision framework for embedded smart sensors.
