@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oculus — Dashboard</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <nav>
+        <a class="logo" href="index.html">Oculus</a>
+        <div class="nav-links">
+            <a href="index.html" class="active">Dashboard</a>
+            <a href="live.html">Live View</a>
+            <a href="analysis.html">Analysis</a>
+        </div>
+    </nav>
+
+    <div class="status-bar">
+        <span><span id="ws-status" class="status-dot disconnected"></span> <span id="ws-text">Disconnected</span></span>
+        <span>System: <strong id="system-name">Oculus</strong></span>
+        <span>Version: <strong id="system-version">—</strong></span>
+    </div>
+
+    <div class="container">
+        <div class="page-header">
+            <h1>Dashboard</h1>
+            <p>Shoulder range-of-motion analysis overview</p>
+        </div>
+
+        <div class="grid grid-4" style="margin-bottom:1.5rem">
+            <div class="card stat-card">
+                <div class="stat-value" id="metric-sessions">—</div>
+                <div class="stat-label">Total Sessions</div>
+            </div>
+            <div class="card stat-card">
+                <div class="stat-value" id="metric-frames">—</div>
+                <div class="stat-label">Frames Processed</div>
+            </div>
+            <div class="card stat-card">
+                <div class="stat-value" id="metric-uptime">—</div>
+                <div class="stat-label">Uptime</div>
+            </div>
+            <div class="card stat-card">
+                <div class="stat-value">11</div>
+                <div class="stat-label">Movements Tracked</div>
+            </div>
+        </div>
+
+        <div class="grid grid-2">
+            <div class="card">
+                <div class="card-header">
+                    <h2>Recent Sessions</h2>
+                </div>
+                <div id="session-list">
+                    <div class="session-item">
+                        <span class="session-info"><span class="session-meta">Loading...</span></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2>Hardware Info</h2>
+                </div>
+                <div class="angle-display">
+                    <div class="angle-row">
+                        <span class="label">System</span>
+                        <span class="value" id="hw-system">—</span>
+                    </div>
+                    <div class="angle-row">
+                        <span class="label">Version</span>
+                        <span class="value" id="hw-version">—</span>
+                    </div>
+                    <div class="angle-row">
+                        <span class="label">Backend</span>
+                        <span class="value" id="hw-backend">—</span>
+                    </div>
+                    <div class="angle-row">
+                        <span class="label">GPU Accelerated</span>
+                        <span class="value" id="hw-gpu">—</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            await initDashboard();
+            // Also populate hardware section from system info
+            const info = await getSystemInfo();
+            if (info) {
+                setText('hw-system', info.name || 'Oculus');
+                setText('hw-version', info.version || '—');
+                setText('hw-backend', info.backend || '—');
+                setText('hw-gpu', info.gpu_accelerated ? 'Yes' : 'No');
+            }
+        });
+    </script>
+</body>
+</html>

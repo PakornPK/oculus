@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oculus — ROM Analysis</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+</head>
+<body>
+    <nav>
+        <a class="logo" href="index.html">Oculus</a>
+        <div class="nav-links">
+            <a href="index.html">Dashboard</a>
+            <a href="live.html">Live View</a>
+            <a href="analysis.html" class="active">Analysis</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="page-header">
+            <h1>ROM Analysis</h1>
+            <p>Shoulder range-of-motion results and symmetry comparison</p>
+        </div>
+
+        <p id="analysis-status" style="color:var(--text-secondary);margin-bottom:1rem"></p>
+
+        <!-- Symmetry + summary cards -->
+        <div class="grid grid-3" style="margin-bottom:1.5rem">
+            <div class="card symmetry-gauge">
+                <div class="symmetry-value" id="symmetry-value">—</div>
+                <div class="symmetry-label">Left-Right Symmetry</div>
+            </div>
+            <div class="card">
+                <div class="card-header"><h2>ROM Profile</h2></div>
+                <div class="chart-wrapper" style="height:250px">
+                    <canvas id="radar-chart"></canvas>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header"><h2>ROM Breakdown</h2></div>
+                <div id="rom-bars" style="max-height:280px;overflow-y:auto">
+                    <div class="rom-bar-container"><span class="rom-bar-label"><span class="movement-name" style="color:var(--text-secondary)">Loading...</span></span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Comparison chart -->
+        <div class="card" style="margin-bottom:1.5rem">
+            <div class="card-header">
+                <h2>Left vs Right Comparison</h2>
+            </div>
+            <div class="chart-wrapper" style="height:400px">
+                <canvas id="comparison-chart"></canvas>
+            </div>
+        </div>
+
+        <!-- Detailed ROM table -->
+        <div class="card" style="margin-bottom:1.5rem">
+            <div class="card-header">
+                <h2>Detailed ROM Data</h2>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th rowspan="2">Movement</th>
+                            <th colspan="3" style="text-align:center;color:var(--accent)">Left Shoulder</th>
+                            <th colspan="3" style="text-align:center;color:var(--accent-orange)">Right Shoulder</th>
+                        </tr>
+                        <tr>
+                            <th>Min</th>
+                            <th>Max</th>
+                            <th>ROM</th>
+                            <th>Min</th>
+                            <th>Max</th>
+                            <th>ROM</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rom-tbody">
+                        <tr>
+                            <td colspan="7" style="text-align:center;color:var(--text-secondary)">Loading analysis data...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Session history -->
+        <div class="card">
+            <div class="card-header">
+                <h2>Session History</h2>
+            </div>
+            <div id="session-list">
+                <div class="session-item">
+                    <span class="session-info"><span class="session-meta">Loading...</span></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/chart-utils.js"></script>
+    <script src="js/app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            initAnalysis();
+        });
+    </script>
+</body>
+</html>
