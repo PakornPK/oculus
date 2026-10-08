@@ -15,6 +15,8 @@ add_library(oculus_lib STATIC
     src/core/frame.cpp
     src/core/pose.cpp
     src/core/hardware_detector.cpp
+    src/camera/file_camera.cpp
+    src/camera/camera_factory.cpp
 )
 target_include_directories(oculus_lib PUBLIC ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(oculus_lib
