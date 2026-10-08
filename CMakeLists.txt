@@ -19,6 +19,8 @@ set(OCULUS_SOURCES
     src/camera/camera_factory.cpp
     src/rom/joint_angle_calculator.cpp
     src/rom/shoulder_rom_analyzer.cpp
+    src/rom/session_manager.cpp
+    src/rom/calibrator.cpp
 )
 
 if(TARGET onnxruntime::onnxruntime)
