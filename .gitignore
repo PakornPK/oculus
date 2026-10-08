@@ -66,3 +66,12 @@ vcpkg_installed/
 # test output & cache
 Testing/
 .cache/
+
+.mimocode/
+
+# Test data (local only, never commit)
+test-data/
+*.mp4
+*.avi
+*.mov
+*.mkv
