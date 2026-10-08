@@ -11,13 +11,19 @@ option(BUILD_DEMO "Build demo application" OFF)
 
 include(cmake/Dependencies.cmake)
 
-add_library(oculus_lib STATIC
+set(OCULUS_SOURCES
     src/core/frame.cpp
     src/core/pose.cpp
     src/core/hardware_detector.cpp
     src/camera/file_camera.cpp
     src/camera/camera_factory.cpp
 )
+
+if(TARGET onnxruntime::onnxruntime)
+    list(APPEND OCULUS_SOURCES src/inference/onnx_inference_engine.cpp)
+endif()
+
+add_library(oculus_lib STATIC ${OCULUS_SOURCES})
 target_include_directories(oculus_lib PUBLIC ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(oculus_lib
     PUBLIC
@@ -25,6 +31,11 @@ target_link_libraries(oculus_lib
         spdlog::spdlog
         yaml-cpp::yaml-cpp
 )
+
+if(TARGET onnxruntime::onnxruntime)
+    target_link_libraries(oculus_lib PUBLIC onnxruntime::onnxruntime)
+    target_compile_definitions(oculus_lib PUBLIC OCULUS_HAS_ONNXRUNTIME=1)
+endif()
 
 if(NOT CMAKE_TRY_COMPILE_TARGET_TYPE STREQUAL "STATIC_LIBRARY")
     add_executable(oculus apps/oculus-sensor/main.cpp)

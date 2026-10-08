@@ -23,3 +23,7 @@ oculus_add_test(pose_test unit/core/pose_test.cpp)
 oculus_add_test(hardware_detector_test unit/core/hardware_detector_test.cpp)
 oculus_add_test(bounded_queue_test unit/core/bounded_queue_test.cpp)
 oculus_add_test(file_camera_test unit/camera/file_camera_test.cpp)
+
+if(TARGET onnxruntime::onnxruntime)
+    oculus_add_test(onnx_inference_engine_test unit/inference/onnx_inference_engine_test.cpp)
+endif()
