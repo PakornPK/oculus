@@ -28,6 +28,9 @@ oculus_add_test(joint_angle_calculator_test unit/rom/joint_angle_calculator_test
 oculus_add_test(shoulder_rom_analyzer_test unit/rom/shoulder_rom_analyzer_test.cpp)
 oculus_add_test(session_manager_test unit/rom/session_manager_test.cpp)
 oculus_add_test(calibrator_test unit/rom/calibrator_test.cpp)
+oculus_add_test(web_server_test unit/http/web_server_test.cpp)
+oculus_add_test(storage_test unit/storage/storage_test.cpp)
+oculus_add_test(watchdog_test unit/runtime/watchdog_test.cpp)
 
 if(TARGET onnxruntime::onnxruntime)
     oculus_add_test(onnx_inference_engine_test unit/inference/onnx_inference_engine_test.cpp)

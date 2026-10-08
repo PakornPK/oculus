@@ -21,6 +21,9 @@ set(OCULUS_SOURCES
     src/rom/shoulder_rom_analyzer.cpp
     src/rom/session_manager.cpp
     src/rom/calibrator.cpp
+    src/http/web_server.cpp
+    src/storage/storage.cpp
+    src/runtime/watchdog.cpp
 )
 
 if(TARGET onnxruntime::onnxruntime)
@@ -34,6 +37,7 @@ target_link_libraries(oculus_lib
         nlohmann_json::nlohmann_json
         spdlog::spdlog
         yaml-cpp::yaml-cpp
+        httplib
 )
 
 if(TARGET onnxruntime::onnxruntime)
