@@ -40,6 +40,9 @@ target_link_libraries(oculus_lib
         spdlog::spdlog
         yaml-cpp::yaml-cpp
         httplib
+        opencv_core
+        opencv_imgproc
+        opencv_imgcodecs
 )
 
 if(TARGET onnxruntime::onnxruntime)
