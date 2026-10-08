@@ -20,3 +20,4 @@ endfunction()
 
 oculus_add_test(frame_test unit/core/frame_test.cpp)
 oculus_add_test(pose_test unit/core/pose_test.cpp)
+oculus_add_test(hardware_detector_test unit/core/hardware_detector_test.cpp)
