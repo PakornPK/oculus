@@ -1,4 +1,6 @@
 #include "oculus/inference/onnx_inference_engine.hpp"
+#include "oculus/inference/models/rtmpose/rtmpose_preprocessor.hpp"
+#include "oculus/inference/models/rtmpose/rtmpose_postprocessor.hpp"
 #include <spdlog/spdlog.h>
 #include <onnxruntime_cxx_api.h>
 
@@ -77,14 +79,53 @@ PoseResult OnnxInferenceEngine::infer(const Frame& frame) {
         throw std::runtime_error("Model not loaded");
     }
 
-    PoseResult result;
-    result.timestamp = frame.timestamp;
+    // Preprocess: resize, normalize, HWC->CHW
+    RTMPosePreprocessor preprocessor;
+    std::vector<float> input_tensor = preprocessor.process(frame);
 
-    // Stub: real preprocessing + inference + postprocessing will be added
-    // in Phase 6A when RTMPose preprocessor/postprocessor are implemented.
-    // For now, return empty result to prove the pipeline compiles and links.
+    // Create input tensor
+    std::vector<int64_t> input_shape = {1, 3,
+        RTMPosePreprocessor::INPUT_HEIGHT,
+        RTMPosePreprocessor::INPUT_WIDTH};
 
-    return result;
+    Ort::MemoryInfo memory_info = Ort::MemoryInfo::CreateCpu(
+        OrtArenaAllocator, OrtMemTypeDefault);
+
+    Ort::Value input_ort_tensor = Ort::Value::CreateTensor<float>(
+        memory_info, input_tensor.data(), input_tensor.size(),
+        input_shape.data(), input_shape.size());
+
+    // Run inference using C API for compatibility
+    std::vector<const char*> input_names_cstr;
+    for (const auto& name : impl_->input_names) {
+        input_names_cstr.push_back(name.c_str());
+    }
+    std::vector<const char*> output_names_cstr;
+    for (const auto& name : impl_->output_names) {
+        output_names_cstr.push_back(name.c_str());
+    }
+
+    Ort::RunOptions run_options;
+    auto output_tensors = impl_->session->Run(
+        run_options,
+        input_names_cstr.data(), &input_ort_tensor, 1,
+        output_names_cstr.data(), output_names_cstr.size());
+
+    // Extract output data
+    auto& output_tensor = output_tensors[0];
+    auto output_shape = output_tensor.GetTensorTypeAndShapeInfo().GetShape();
+    float* output_data = output_tensor.GetTensorMutableData<float>();
+
+    size_t output_size = 1;
+    for (auto dim : output_shape) {
+        if (dim > 0) output_size *= static_cast<size_t>(dim);
+    }
+
+    std::vector<float> heatmap(output_data, output_data + output_size);
+
+    // Postprocess: extract keypoints from heatmaps
+    RTMPosePostprocessor postprocessor;
+    return postprocessor.process(heatmap, frame.timestamp);
 }
 
 std::string OnnxInferenceEngine::backend_name() const {

@@ -29,11 +29,25 @@ set(OCULUS_SOURCES
 )
 
 if(TARGET onnxruntime::onnxruntime)
-    list(APPEND OCULUS_SOURCES src/inference/onnx_inference_engine.cpp)
+    list(APPEND OCULUS_SOURCES
+        src/inference/onnx_inference_engine.cpp
+        src/inference/models/rtmpose/rtmpose_preprocessor.cpp
+        src/inference/models/rtmpose/rtmpose_postprocessor.cpp
+    )
 endif()
 
 add_library(oculus_lib STATIC ${OCULUS_SOURCES})
-target_include_directories(oculus_lib PUBLIC ${CMAKE_SOURCE_DIR}/include)
+target_include_directories(oculus_lib
+    PUBLIC
+        ${CMAKE_SOURCE_DIR}/include
+    PRIVATE
+        ${opencv_SOURCE_DIR}/modules/core/include
+        ${opencv_SOURCE_DIR}/modules/imgproc/include
+        ${opencv_SOURCE_DIR}/modules/imgcodecs/include
+        ${opencv_SOURCE_DIR}/modules/videoio/include
+        ${opencv_BINARY_DIR}
+        ${CMAKE_BINARY_DIR}
+)
 target_link_libraries(oculus_lib
     PUBLIC
         nlohmann_json::nlohmann_json
@@ -43,6 +57,7 @@ target_link_libraries(oculus_lib
         opencv_core
         opencv_imgproc
         opencv_imgcodecs
+        opencv_videoio
 )
 
 if(TARGET onnxruntime::onnxruntime)

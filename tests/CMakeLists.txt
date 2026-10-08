@@ -14,6 +14,12 @@ function(oculus_add_test TEST_NAME TEST_SOURCE)
         PRIVATE
             ${CMAKE_SOURCE_DIR}/include
             ${CMAKE_SOURCE_DIR}/tests/mocks
+            ${opencv_SOURCE_DIR}/modules/core/include
+            ${opencv_SOURCE_DIR}/modules/imgproc/include
+            ${opencv_SOURCE_DIR}/modules/imgcodecs/include
+            ${opencv_SOURCE_DIR}/modules/videoio/include
+            ${opencv_BINARY_DIR}
+            ${CMAKE_BINARY_DIR}
     )
     gtest_discover_tests(${TEST_NAME})
 endfunction()
@@ -37,3 +43,6 @@ oculus_add_test(metrics_test unit/runtime/metrics_test.cpp)
 if(TARGET onnxruntime::onnxruntime)
     oculus_add_test(onnx_inference_engine_test unit/inference/onnx_inference_engine_test.cpp)
 endif()
+
+oculus_add_test(preprocessor_test unit/inference/preprocessor_test.cpp)
+oculus_add_test(postprocessor_test unit/inference/postprocessor_test.cpp)
