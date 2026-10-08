@@ -31,6 +31,8 @@ oculus_add_test(calibrator_test unit/rom/calibrator_test.cpp)
 oculus_add_test(web_server_test unit/http/web_server_test.cpp)
 oculus_add_test(storage_test unit/storage/storage_test.cpp)
 oculus_add_test(watchdog_test unit/runtime/watchdog_test.cpp)
+oculus_add_test(config_test unit/core/config_test.cpp)
+oculus_add_test(metrics_test unit/runtime/metrics_test.cpp)
 
 if(TARGET onnxruntime::onnxruntime)
     oculus_add_test(onnx_inference_engine_test unit/inference/onnx_inference_engine_test.cpp)

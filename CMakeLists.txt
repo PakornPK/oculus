@@ -24,6 +24,8 @@ set(OCULUS_SOURCES
     src/http/web_server.cpp
     src/storage/storage.cpp
     src/runtime/watchdog.cpp
+    src/runtime/metrics.cpp
+    src/core/config.cpp
 )
 
 if(TARGET onnxruntime::onnxruntime)
