@@ -161,6 +161,19 @@
                 <div class="card" style="flex:1;min-height:250px">
                     <div class="card-header">
                         <h2>Angle Timeline</h2>
+                        <select id="chart-movement" style="background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:0.8rem">
+                            <option value="abduction">Abduction</option>
+                            <option value="forward_flexion">Forward Flexion</option>
+                            <option value="extension">Extension</option>
+                            <option value="external_rotation">External Rotation</option>
+                            <option value="internal_rotation">Internal Rotation</option>
+                            <option value="adduction">Adduction</option>
+                            <option value="horizontal_adduction">Horizontal Adduction</option>
+                            <option value="scapular_protraction">Scapular Protraction</option>
+                            <option value="scapular_retraction">Scapular Retraction</option>
+                            <option value="shoulder_elevation">Shoulder Elevation</option>
+                            <option value="shoulder_depression">Shoulder Depression</option>
+                        </select>
                     </div>
                     <div class="chart-wrapper" style="height:200px">
                         <canvas id="angle-chart"></canvas>

@@ -411,10 +411,27 @@ function initLiveView() {
 
     // ROM angles chart
     realtimeAngleChart = ChartUtils.createRealtimeChart('angle-chart', {
-        title: 'Shoulder Angles Over Time',
+        title: 'Abduction L/R',
         yLabel: 'Angle (°)',
         maxPoints: 120,
     });
+
+    // Update chart title when movement selection changes
+    const chartSel = document.getElementById('chart-movement');
+    if (chartSel) {
+        chartSel.addEventListener('change', () => {
+            const label = chartSel.options[chartSel.selectedIndex].text;
+            if (realtimeAngleChart && realtimeAngleChart.options && realtimeAngleChart.options.plugins) {
+                realtimeAngleChart.options.plugins.title.text = label + ' L/R';
+                realtimeAngleChart.update();
+            }
+            // Clear chart data
+            realtimeAngleChart.data.labels = [];
+            realtimeAngleChart.data.datasets[0].data = [];
+            realtimeAngleChart.data.datasets[1].data = [];
+            realtimeAngleChart.update();
+        });
+    }
 
     const ws = new OculusWebSocket();
     ws.on('connected', () => {
@@ -475,10 +492,12 @@ function updateLiveAngles(data) {
         if (rightEl && right !== undefined) rightEl.textContent = right.toFixed(1) + '°';
     }
 
-    // Update chart — pick abduction as the primary display
-    const primaryLeft = flat['left_abduction'] ?? 0;
-    const primaryRight = flat['right_abduction'] ?? 0;
-    ChartUtils.pushChartData(realtimeAngleChart, time, [primaryLeft, primaryRight]);
+    // Update chart — use selected movement
+    const sel = document.getElementById('chart-movement');
+    const mv = sel ? sel.value : 'abduction';
+    const chartLeft = flat[`left_${mv}`] ?? 0;
+    const chartRight = flat[`right_${mv}`] ?? 0;
+    ChartUtils.pushChartData(realtimeAngleChart, time, [chartLeft, chartRight]);
 }
 
 /* ── Analysis (analysis.html) ── */
