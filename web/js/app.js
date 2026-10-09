@@ -453,10 +453,21 @@ function updateLiveAngles(data) {
     const angles = data.angles || data;
     const time = new Date().toLocaleTimeString();
 
+    // Flatten nested server format: { left: { abduction: 179 }, left_forward: { flexion: 180 } }
+    // to: { left_abduction: 179, left_forward_flexion: 180 }
+    const flat = {};
+    for (const [key, val] of Object.entries(angles)) {
+        if (typeof val === 'object' && val !== null) {
+            for (const [sub, v] of Object.entries(val)) {
+                flat[`${key}_${sub}`] = v;
+            }
+        }
+    }
+
     // Update text displays
     for (const movement of MOVEMENTS) {
-        const left = angles[movement]?.left ?? angles[`${movement}_left`];
-        const right = angles[movement]?.right ?? angles[`${movement}_right`];
+        const left = flat[`left_${movement}`] ?? flat[`left_${movement.replace('_', '_')}`];
+        const right = flat[`right_${movement}`] ?? flat[`right_${movement.replace('_', '_')}`];
 
         const leftEl = document.getElementById(`angle-${movement}-left`);
         const rightEl = document.getElementById(`angle-${movement}-right`);
@@ -465,8 +476,8 @@ function updateLiveAngles(data) {
     }
 
     // Update chart — pick abduction as the primary display
-    const primaryLeft = angles.abduction?.left ?? 0;
-    const primaryRight = angles.abduction?.right ?? 0;
+    const primaryLeft = flat['left_abduction'] ?? 0;
+    const primaryRight = flat['right_abduction'] ?? 0;
     ChartUtils.pushChartData(realtimeAngleChart, time, [primaryLeft, primaryRight]);
 }
 
