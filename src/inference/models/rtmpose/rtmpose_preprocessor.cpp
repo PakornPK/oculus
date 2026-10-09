@@ -20,31 +20,8 @@ std::vector<float> RTMPosePreprocessor::process(const Frame& frame) const {
     cv::Mat rgb(frame.height, frame.width, CV_8UC3,
                 const_cast<uint8_t*>(frame.data.data()));
 
-    // Default: center crop with model aspect ratio
-    // This will be overridden when person detection provides a bbox
-    float model_aspect = static_cast<float>(INPUT_WIDTH) / INPUT_HEIGHT;
-    float frame_aspect = static_cast<float>(frame.width) / frame.height;
-
-    int crop_x = 0, crop_y = 0, crop_w = frame.width, crop_h = frame.height;
-
-    if (frame_aspect > model_aspect) {
-        crop_h = frame.height;
-        crop_w = static_cast<int>(crop_h * model_aspect);
-        crop_x = (frame.width - crop_w) / 2;
-        crop_y = 0;
-    } else {
-        crop_w = frame.width;
-        crop_h = static_cast<int>(crop_w / model_aspect);
-        crop_x = 0;
-        crop_y = (frame.height - crop_h) / 2;
-    }
-
-    crop_x = std::max(0, crop_x);
-    crop_y = std::max(0, crop_y);
-    crop_w = std::min(crop_w, frame.width - crop_x);
-    crop_h = std::min(crop_h, frame.height - crop_y);
-
-    return process_crop(rgb, crop_x, crop_y, crop_w, crop_h);
+    // Use full frame — no cropping, just resize directly to model input
+    return process_crop(rgb, 0, 0, frame.width, frame.height);
 }
 
 std::vector<float> RTMPosePreprocessor::process_with_bbox(

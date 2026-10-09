@@ -365,9 +365,6 @@ function drawCropBoundary(ctx, w, h) {
 function drawSkeletonOverlay(ctx, keypoints, w, h) {
     if (!keypoints || keypoints.length < 17) return;
 
-    // Draw crop boundary
-    drawCropBoundary(ctx, w, h);
-
     // Draw bones
     ctx.lineWidth = 3;
     ctx.strokeStyle = '#fbbf24';
@@ -408,9 +405,6 @@ function initLiveView() {
         drawSkeletonOverlay(ctx, latestKeypoints, canvas.width, canvas.height);
         if (placeholder) placeholder.style.display = 'none';
     };
-
-    // Init crop editor (drag/resize crop boundary)
-    initCropEditor(canvas);
 
     // Init 3D skeleton
     initSkeleton3D();
