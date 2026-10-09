@@ -35,6 +35,10 @@ function flattenAngles(data) {
         if (typeof val === 'object' && val !== null) {
             for (const [sub, v] of Object.entries(val)) {
                 flat[`${key}_${sub}`] = v;
+                // Also create "left_" and "right_" prefixed keys for "both" lookup
+                if (key === 'left' || key === 'right') {
+                    flat[`${key}_${sub}`] = v;
+                }
             }
         }
     }
@@ -177,8 +181,11 @@ function updateCompare3D(kpA, kpB) {
         }
 
         for (const [a, b] of [[shoulder, elbow], [elbow, wrist]]) {
-            group.add(new THREE.Line(
-                new THREE.BufferGeometry().setFromPoints([a, b]), lineMat));
+            const pts = [a, b];
+            const lineGeo = new THREE.BufferGeometry().setFromPoints(pts);
+            if (lineGeo.attributes.position && lineGeo.attributes.position.count >= 2) {
+                group.add(new THREE.Line(lineGeo, lineMat));
+            }
         }
 
         // Angle at shoulder (relative to vertical)
@@ -300,6 +307,11 @@ function initLiveView() {
             angles: latestAngles ? JSON.parse(JSON.stringify(latestAngles)) : null,
             time: new Date().toLocaleTimeString()
         };
+        console.log('[CAP-A] captured:', {
+            hasKp: !!capturedFrameA.keypoints,
+            hasAngles: !!capturedFrameA.angles,
+            anglesKeys: capturedFrameA.angles ? Object.keys(capturedFrameA.angles) : null
+        });
         const st = document.getElementById('capture-status');
         if (st) st.innerHTML = `<span style="color:#2ECC71">✓ A captured (${capturedFrameA.time})</span>`;
         showToast('Frame A captured');
@@ -325,7 +337,10 @@ function initLiveView() {
 
         const fa = flattenAngles(capturedFrameA.angles);
         const fb = flattenAngles(capturedFrameB.angles);
-        const side = selectedSide;
+
+        // Use 'left' for lookup when side is 'both'
+        const lookupSide = selectedSide === 'both' ? 'left' : selectedSide;
+        const side = lookupSide;
         const valA = fa[`${side}_${movement}`] ?? 0;
         const valB = fb[`${side}_${movement}`] ?? 0;
         const rom = valB - valA;
@@ -418,6 +433,8 @@ function initLiveView() {
             // Angles
             if (data.angles && typeof data.angles === 'object') {
                 latestAngles = data;
+                console.log('[SSE] angles keys:', Object.keys(data.angles).length,
+                            'left_abd:', data.angles?.left?.abduction?.toFixed(1));
                 if (realtimeAngleChart && typeof ChartUtils !== 'undefined') {
                     const flat = flattenAngles(data);
                     const l = flat['left_abduction'] ?? 0;
