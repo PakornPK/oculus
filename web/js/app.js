@@ -255,12 +255,11 @@ function initCompare3D() {
 function updateCompare3D(kpA, kpB) {
     if (!compare3d || !kpA || !kpB) return;
 
-    const { group, geo, matA, matB, arrowMat } = compare3d;
-    const scale = 0.003;  // Same as live 3D
+    const { group, geo, matA, matB } = compare3d;
+    const scale = 0.003;
 
     while (group.children.length > 0) group.remove(group.children[0]);
 
-    // Get shoulder, elbow, wrist for selected side
     const si = selectedSide === 'right' ? 6 : 5;
     const ei = selectedSide === 'right' ? 8 : 7;
     const wi = selectedSide === 'right' ? 10 : 9;
@@ -269,7 +268,7 @@ function updateCompare3D(kpA, kpB) {
         const s = kp[si], e = kp[ei], w = kp[wi];
         if (!s || !e || !w || s.confidence < 0.3) return null;
 
-        // Origin at shoulder, arm extends from there (Y inverted for 3D)
+        // Origin at shoulder
         const shoulder = new THREE.Vector3(0, 0, 0);
         const elbow = new THREE.Vector3(
             (e.x - s.x) * scale,
@@ -282,42 +281,39 @@ function updateCompare3D(kpA, kpB) {
             0
         );
 
+        // Keypoints
         for (const p of [shoulder, elbow, wrist]) {
             const sp = new THREE.Mesh(geo, mat);
             sp.position.copy(p);
             group.add(sp);
         }
 
+        // Bones
         const boneMat = new THREE.LineBasicMaterial({ color: mat.color.getHex() });
         for (const [a, b] of [[shoulder, elbow], [elbow, wrist]]) {
-            const lineGeo = new THREE.BufferGeometry().setFromPoints([a, b]);
-            group.add(new THREE.Line(lineGeo, boneMat));
+            group.add(new THREE.Line(
+                new THREE.BufferGeometry().setFromPoints([a, b]),
+                boneMat
+            ));
         }
 
-        // Angle arc at shoulder
-        const v1 = elbow.clone().sub(shoulder).normalize();
-        const v2 = new THREE.Vector3(0, -1, 0);
-        const angle = Math.acos(Math.max(-1, Math.min(1, v1.dot(v2)))) * 180 / Math.PI;
+        // Calculate angle using same method as server (torso vertical reference)
+        const v1 = elbow.clone().sub(shoulder);
+        const v2 = new THREE.Vector3(0, -1, 0);  // vertical down
+        const dot = v1.dot(v2);
+        const mag = v1.length();
+        const cosA = mag > 0 ? Math.max(-1, Math.min(1, dot / mag)) : 0;
+        const angle = Math.acos(cosA) * 180 / Math.PI;
 
+        // Draw arc
         const arcMat = new THREE.LineBasicMaterial({ color: 0xfbbf24 });
-        const arcPoints = [];
-        const segments = 20;
-        const radius = 0.15;
-        const startAngle = Math.atan2(-v2.y, -v2.x);
-        const endAngle = Math.atan2(-v1.y, -v1.x);
-        for (let i = 0; i <= segments; i++) {
-            const t = i / segments;
-            const a = startAngle + (endAngle - startAngle) * t;
-            arcPoints.push(new THREE.Vector3(Math.cos(a) * radius, Math.sin(a) * radius, 0));
+        const arcPts = [];
+        for (let i = 0; i <= 20; i++) {
+            const t = i / 20;
+            const a = -Math.PI / 2 + (Math.atan2(v1.y, v1.x) + Math.PI / 2) * t;
+            arcPts.push(new THREE.Vector3(Math.cos(a) * 0.15, Math.sin(a) * 0.15, 0));
         }
-        group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(arcPoints), arcMat));
-
-        // Reference line
-        const refEnd = new THREE.Vector3(0, -0.3, 0);
-        group.add(new THREE.Line(
-            new THREE.BufferGeometry().setFromPoints([shoulder, refEnd]),
-            new THREE.LineBasicMaterial({ color: 0x475569, transparent: true, opacity: 0.5 })
-        ));
+        group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(arcPts), arcMat));
 
         return { shoulder, elbow, wrist, angle };
     };
@@ -326,11 +322,19 @@ function updateCompare3D(kpA, kpB) {
     const armB = drawArm(kpB, matB);
 
     if (armA && armB) {
-        const delta = armB.angle - armA.angle;
+        // Use server-provided angles for display (consistent with measurement frame)
+        const fa = flattenAngles(capturedFrameA?.angles);
+        const fb = flattenAngles(capturedFrameB?.angles);
+        const mv = document.getElementById('measure-movement')?.value || 'forward_flexion';
+        const side = selectedSide === 'right' ? 'right' : 'left';
+        const valA = fa[`${side}_${mv}`] ?? armA.angle;
+        const valB = fb[`${side}_${mv}`] ?? armB.angle;
+        const delta = valB - valA;
+
         const label = document.getElementById('compare3d-rom-label');
         if (label) {
             label.innerHTML =
-                `A: ${armA.angle.toFixed(1)}° | B: ${armB.angle.toFixed(1)}° | ROM: ${delta > 0 ? '+' : ''}${delta.toFixed(1)}°`;
+                `A: ${valA.toFixed(1)}° | B: ${valB.toFixed(1)}° | ROM: ${delta > 0 ? '+' : ''}${delta.toFixed(1)}°`;
         }
     }
 
