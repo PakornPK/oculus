@@ -4,6 +4,22 @@
 
 namespace oculus {
 
+float RTMPosePostprocessor::refine_coordinate(
+    const float* data, int size, int peak_idx) const {
+    float sum = 0.0f, weight_sum = 0.0f;
+    int radius = 3;
+
+    for (int i = peak_idx - radius; i <= peak_idx + radius; ++i) {
+        if (i < 0 || i >= size) continue;
+        float dist = static_cast<float>(i - peak_idx);
+        float weight = std::exp(-dist * dist / 2.0f);
+        sum += static_cast<float>(i) * weight * data[i];
+        weight_sum += weight * data[i];
+    }
+
+    return (weight_sum > 0) ? sum / weight_sum : static_cast<float>(peak_idx);
+}
+
 int RTMPosePostprocessor::argmax_1d(const float* data, int size) const {
     int best_idx = 0;
     float best_val = data[0];
@@ -35,14 +51,16 @@ PoseResult RTMPosePostprocessor::process_simcc(
         int best_x = argmax_1d(x_data, SIMCC_X_SIZE);
         int best_y = argmax_1d(y_data, SIMCC_Y_SIZE);
 
+        // Sub-pixel refinement: reduce jitter
+        float x_refined = refine_coordinate(x_data, SIMCC_X_SIZE, best_x);
+        float y_refined = refine_coordinate(y_data, SIMCC_Y_SIZE, best_y);
+
         float x_conf = x_data[best_x];
         float y_conf = y_data[best_y];
 
-        // SimCC: index / 2.0 = coordinate in model input space (192x256)
-        // Then scale to original video size (will be done by caller)
         Keypoint kp;
-        kp.x = static_cast<float>(best_x) / 2.0f;
-        kp.y = static_cast<float>(best_y) / 2.0f;
+        kp.x = x_refined / 2.0f;
+        kp.y = y_refined / 2.0f;
         kp.confidence = (x_conf + y_conf) / 2.0f;
 
         pose.keypoints[k] = kp;

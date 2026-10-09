@@ -27,6 +27,7 @@ public:
 
 private:
     int argmax_1d(const float* data, int size) const;
+    float refine_coordinate(const float* data, int size, int peak_idx) const;
 };
 
 } // namespace oculus
