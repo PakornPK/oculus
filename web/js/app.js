@@ -250,21 +250,15 @@ function updateSkeleton3D(keypoints) {
     const scale = 0.003; // pixel to 3D unit
     const centerY = 1.0;
 
-    // Update sphere positions (convert 2D to 3D with depth estimation)
-    const refX = keypoints[6]?.x || 320; // right shoulder as reference
-    const refY = keypoints[6]?.y || 180;
+    // Update sphere positions (filtered by selected side)
+    const refX = keypoints[6]?.x || 320;
 
     for (let i = 0; i < 17; i++) {
         const kp = keypoints[i];
-        if (kp.confidence > 0.3) {
-            // Estimate depth from body position
-            // Arms extended = further from body center = more depth
+        if (kp.confidence > 0.3 && isSideVisible(i)) {
             let z = 0;
-            if (i === 7 || i === 8) { // elbows
-                z = Math.abs(kp.x - refX) * scale * 0.3;
-            } else if (i === 9 || i === 10) { // wrists
-                z = Math.abs(kp.x - refX) * scale * 0.5;
-            }
+            if (i === 7 || i === 8) z = Math.abs(kp.x - refX) * scale * 0.3;
+            else if (i === 9 || i === 10) z = Math.abs(kp.x - refX) * scale * 0.5;
 
             spheres[i].position.set(
                 (kp.x - 320) * scale,
@@ -419,13 +413,24 @@ function drawCropBoundary(ctx, w, h) {
     ctx.fillText(`crop: ${Math.round(cropRect.x)},${Math.round(cropRect.y)} ${Math.round(cropRect.w)}x${Math.round(cropRect.h)}`, cx + 2, cy - 4);
 }
 
+const LEFT_INDICES = new Set([1, 3, 5, 7, 9, 11, 13, 15]);
+const RIGHT_INDICES = new Set([2, 4, 6, 8, 10, 12, 14, 16]);
+const CENTER_INDICES = new Set([0]);
+
+function isSideVisible(idx) {
+    if (CENTER_INDICES.has(idx)) return true;
+    if (selectedSide === 'left') return LEFT_INDICES.has(idx);
+    return RIGHT_INDICES.has(idx);
+}
+
 function drawSkeletonOverlay(ctx, keypoints, w, h) {
     if (!keypoints || keypoints.length < 17) return;
 
-    // Draw bones
+    // Draw bones (filtered by selected side)
     ctx.lineWidth = 3;
     ctx.strokeStyle = '#fbbf24';
     for (const [i, j] of SKELETON_BONES) {
+        if (!isSideVisible(i) && !isSideVisible(j)) continue;
         const a = keypoints[i], b = keypoints[j];
         if (a.confidence > 0.3 && b.confidence > 0.3) {
             ctx.beginPath();
@@ -435,14 +440,14 @@ function drawSkeletonOverlay(ctx, keypoints, w, h) {
         }
     }
 
-    // Draw keypoints
+    // Draw keypoints (filtered by selected side)
     for (let i = 0; i < keypoints.length; i++) {
+        if (!isSideVisible(i)) continue;
         const kp = keypoints[i];
         if (kp.confidence > 0.3) {
             ctx.beginPath();
             ctx.arc(kp.x * w / 640, kp.y * h / 360, 4, 0, Math.PI * 2);
-            ctx.fillStyle = (i === 5 || i === 7 || i === 9 || i === 11 || i === 13 || i === 15)
-                ? '#4ade80' : '#f87171';
+            ctx.fillStyle = LEFT_INDICES.has(i) ? '#4ade80' : '#f87171';
             ctx.fill();
         }
     }
