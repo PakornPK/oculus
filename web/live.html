@@ -15,25 +15,25 @@
         <div class="nav-links">
             <a href="index.html">Dashboard</a>
             <a href="live.html" class="active">Live View</a>
-            <a href="compare.html">Compare</a>
             <a href="analysis.html">Analysis</a>
         </div>
     </nav>
 
     <div class="status-bar">
         <span><span id="ws-status" class="status-dot disconnected"></span> <span id="ws-text">Disconnected</span></span>
-        <span>Frame Rate: <strong id="fps">—</strong></span>
-        <span>Latency: <strong id="latency">—</strong></span>
+        <span>Frame: <strong id="frame-count">—</strong></span>
+        <span>Confidence: <strong id="conf-display">—</strong></span>
     </div>
 
     <div class="container">
         <div class="page-header">
             <h1>Live View</h1>
-            <p>Real-time pose estimation and shoulder angle tracking</p>
+            <p>Real-time shoulder ROM estimation with comparison mode</p>
         </div>
 
-        <div class="grid grid-3">
-            <!-- Video + pose overlay -->
+        <!-- Main grid: Video | 3D | Controls+Data -->
+        <div class="grid grid-3" style="margin-bottom:1.5rem">
+            <!-- Video + skeleton overlay -->
             <div class="card">
                 <div class="card-header">
                     <h2>Camera Feed</h2>
@@ -51,169 +51,87 @@
             <!-- 3D Skeleton -->
             <div class="card">
                 <div class="card-header">
-                    <h2>3D Skeleton</h2>
-                    <span class="badge">3D</span>
+                    <h2>3D View</h2>
+                    <div style="display:flex;gap:0.5rem;font-size:0.7rem">
+                        <span id="legend-a" style="display:none"><span style="color:#4ade80">●</span> A</span>
+                        <span id="legend-b" style="display:none"><span style="color:#f87171">●</span> B</span>
+                        <span id="legend-arrow" style="display:none"><span style="color:#fbbf24">→</span> ROM</span>
+                    </div>
                 </div>
-                <div id="skeleton3d-container" style="width:100%;height:400px;background:#0f172a;border-radius:8px;position:relative">
+                <div id="skeleton3d-container" style="width:100%;height:400px;background:#0f172a;border-radius:8px">
                     <canvas id="skeleton3d-canvas" style="width:100%;height:100%"></canvas>
                 </div>
             </div>
 
-            <!-- Right panel: angles + chart -->
-            <div style="display:flex;flex-direction:column;gap:1.5rem">
-                <!-- Current angles -->
-                <div class="card">
+            <!-- Right panel: Controls + Data -->
+            <div style="display:flex;flex-direction:column;gap:1rem">
+                <!-- Mode toggle -->
+                <div class="card" style="padding:0.75rem">
+                    <div style="display:flex;gap:0.5rem">
+                        <button id="mode-live" class="btn active" style="flex:1;padding:8px;font-size:0.85rem">Live</button>
+                        <button id="mode-compare" class="btn" style="flex:1;padding:8px;font-size:0.85rem">Compare A/B</button>
+                    </div>
+                </div>
+
+                <!-- Live: Current angles -->
+                <div id="panel-live" class="card" style="flex:1">
                     <div class="card-header">
                         <h2>Current Angles</h2>
                     </div>
-                    <div class="angle-display">
-                        <div class="angle-row">
-                            <span class="label">Abduction L / R</span>
-                            <span>
-                                <span class="value left" id="angle-abduction-left">—°</span>
-                                <span style="color:var(--text-secondary)"> / </span>
-                                <span class="value right" id="angle-abduction-right">—°</span>
-                            </span>
-                        </div>
-                        <div class="angle-row">
-                            <span class="label">Forward Flexion L / R</span>
-                            <span>
-                                <span class="value left" id="angle-forward_flexion-left">—°</span>
-                                <span style="color:var(--text-secondary)"> / </span>
-                                <span class="value right" id="angle-forward_flexion-right">—°</span>
-                            </span>
-                        </div>
-                        <div class="angle-row">
-                            <span class="label">Extension L / R</span>
-                            <span>
-                                <span class="value left" id="angle-extension-left">—°</span>
-                                <span style="color:var(--text-secondary)"> / </span>
-                                <span class="value right" id="angle-extension-right">—°</span>
-                            </span>
-                        </div>
-                        <div class="angle-row">
-                            <span class="label">External Rotation L / R</span>
-                            <span>
-                                <span class="value left" id="angle-external_rotation-left">—°</span>
-                                <span style="color:var(--text-secondary)"> / </span>
-                                <span class="value right" id="angle-external_rotation-right">—°</span>
-                            </span>
-                        </div>
-                        <div class="angle-row">
-                            <span class="label">Internal Rotation L / R</span>
-                            <span>
-                                <span class="value left" id="angle-internal_rotation-left">—°</span>
-                                <span style="color:var(--text-secondary)"> / </span>
-                                <span class="value right" id="angle-internal_rotation-right">—°</span>
-                            </span>
-                        </div>
-                        <div class="angle-row">
-                            <span class="label">Adduction L / R</span>
-                            <span>
-                                <span class="value left" id="angle-adduction-left">—°</span>
-                                <span style="color:var(--text-secondary)"> / </span>
-                                <span class="value right" id="angle-adduction-right">—°</span>
-                            </span>
-                        </div>
-                        <div class="angle-row">
-                            <span class="label">Horiz. Adduction L / R</span>
-                            <span>
-                                <span class="value left" id="angle-horizontal_adduction-left">—°</span>
-                                <span style="color:var(--text-secondary)"> / </span>
-                                <span class="value right" id="angle-horizontal_adduction-right">—°</span>
-                            </span>
-                        </div>
-                        <div class="angle-row">
-                            <span class="label">Scapular Protraction L / R</span>
-                            <span>
-                                <span class="value left" id="angle-scapular_protraction-left">—°</span>
-                                <span style="color:var(--text-secondary)"> / </span>
-                                <span class="value right" id="angle-scapular_protraction-right">—°</span>
-                            </span>
-                        </div>
-                        <div class="angle-row">
-                            <span class="label">Scapular Retraction L / R</span>
-                            <span>
-                                <span class="value left" id="angle-scapular_retraction-left">—°</span>
-                                <span style="color:var(--text-secondary)"> / </span>
-                                <span class="value right" id="angle-scapular_retraction-right">—°</span>
-                            </span>
-                        </div>
-                        <div class="angle-row">
-                            <span class="label">Shoulder Elevation L / R</span>
-                            <span>
-                                <span class="value left" id="angle-shoulder_elevation-left">—°</span>
-                                <span style="color:var(--text-secondary)"> / </span>
-                                <span class="value right" id="angle-shoulder_elevation-right">—°</span>
-                            </span>
-                        </div>
-                        <div class="angle-row">
-                            <span class="label">Shoulder Depression L / R</span>
-                            <span>
-                                <span class="value left" id="angle-shoulder_depression-left">—°</span>
-                                <span style="color:var(--text-secondary)"> / </span>
-                                <span class="value right" id="angle-shoulder_depression-right">—°</span>
-                            </span>
-                        </div>
+                    <div class="angle-display" id="angles-display">
+                        <!-- Filled by JS -->
                     </div>
                 </div>
 
-                <!-- ROM Comparison Mode -->
-                <div class="card">
+                <!-- Compare: Capture controls + results -->
+                <div id="panel-compare" class="card" style="display:none;flex:1">
                     <div class="card-header">
                         <h2>ROM Comparison</h2>
                     </div>
-                    <!-- Side selector -->
-                    <div style="display:flex;gap:0.5rem;margin-bottom:0.75rem">
-                        <button id="btn-side-left" class="btn active" style="flex:1;font-size:0.8rem;padding:6px">Left Arm</button>
-                        <button id="btn-side-right" class="btn" style="flex:1;font-size:0.8rem;padding:6px">Right Arm</button>
+                    <div style="display:flex;gap:0.5rem;margin-bottom:0.5rem">
+                        <button id="btn-side-left" class="btn active" style="flex:1;padding:6px;font-size:0.8rem">Left</button>
+                        <button id="btn-side-right" class="btn" style="flex:1;padding:6px;font-size:0.8rem">Right</button>
                     </div>
-                    <!-- Capture buttons -->
-                    <div style="display:flex;gap:0.5rem;margin-bottom:0.75rem">
-                        <button id="btn-capture-a" class="btn" style="flex:1;font-size:0.8rem;padding:6px;background:#1e293b">
-                            <div style="font-weight:600">A: Resting</div>
-                            <div style="font-size:0.7rem;opacity:0.7">Capture baseline</div>
+                    <div style="display:flex;gap:0.5rem;margin-bottom:0.5rem">
+                        <button id="btn-capture-a" class="btn" style="flex:1;padding:6px;font-size:0.8rem;background:#1e293b">
+                            <strong>A: Resting</strong>
                         </button>
-                        <button id="btn-capture-b" class="btn" style="flex:1;font-size:0.8rem;padding:6px;background:#1e293b">
-                            <div style="font-weight:600">B: Max ROM</div>
-                            <div style="font-size:0.7rem;opacity:0.7">Capture peak</div>
+                        <button id="btn-capture-b" class="btn" style="flex:1;padding:6px;font-size:0.8rem;background:#1e293b">
+                            <strong>B: Max ROM</strong>
                         </button>
                     </div>
-                    <!-- Controls -->
                     <div style="display:flex;gap:0.5rem;margin-bottom:0.75rem">
-                        <button id="btn-compare" class="btn" style="flex:1;font-size:0.8rem;padding:6px;background:var(--accent);color:#000">Compare A vs B</button>
-                        <button id="btn-reset" class="btn" style="font-size:0.8rem;padding:6px;background:var(--accent-red)">Reset</button>
+                        <button id="btn-compare" class="btn" style="flex:1;padding:6px;font-size:0.8rem;background:var(--accent);color:#000">Compare</button>
+                        <button id="btn-reset" class="btn" style="padding:6px;font-size:0.8rem;background:var(--accent-red)">Reset</button>
                     </div>
-                    <!-- Status -->
                     <div id="compare-status" style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:0.5rem">
-                        Select side → Capture A (resting) → Move arm → Capture B (max) → Compare
+                        Select side → Capture A → Move → Capture B → Compare
                     </div>
-                    <!-- Result table -->
                     <div id="compare-result"></div>
                 </div>
+            </div>
+        </div>
 
-                <!-- Real-time chart -->
-                <div class="card" style="flex:1;min-height:250px">
-                    <div class="card-header">
-                        <h2>Angle Timeline</h2>
-                        <select id="chart-movement" style="background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:0.8rem">
-                            <option value="abduction">Abduction</option>
-                            <option value="forward_flexion">Forward Flexion</option>
-                            <option value="extension">Extension</option>
-                            <option value="external_rotation">External Rotation</option>
-                            <option value="internal_rotation">Internal Rotation</option>
-                            <option value="adduction">Adduction</option>
-                            <option value="horizontal_adduction">Horizontal Adduction</option>
-                            <option value="scapular_protraction">Scapular Protraction</option>
-                            <option value="scapular_retraction">Scapular Retraction</option>
-                            <option value="shoulder_elevation">Shoulder Elevation</option>
-                            <option value="shoulder_depression">Shoulder Depression</option>
-                        </select>
-                    </div>
-                    <div class="chart-wrapper" style="height:200px">
-                        <canvas id="angle-chart"></canvas>
-                    </div>
-                </div>
+        <!-- Bottom: Chart -->
+        <div class="card">
+            <div class="card-header">
+                <h2>Angle Timeline</h2>
+                <select id="chart-movement" style="background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:0.8rem">
+                    <option value="abduction">Abduction</option>
+                    <option value="forward_flexion">Forward Flexion</option>
+                    <option value="extension">Extension</option>
+                    <option value="external_rotation">External Rotation</option>
+                    <option value="internal_rotation">Internal Rotation</option>
+                    <option value="adduction">Adduction</option>
+                    <option value="horizontal_adduction">Horizontal Adduction</option>
+                    <option value="scapular_protraction">Scapular Protraction</option>
+                    <option value="scapular_retraction">Scapular Retraction</option>
+                    <option value="shoulder_elevation">Shoulder Elevation</option>
+                    <option value="shoulder_depression">Shoulder Depression</option>
+                </select>
+            </div>
+            <div class="chart-wrapper" style="height:200px">
+                <canvas id="angle-chart"></canvas>
             </div>
         </div>
     </div>

@@ -463,6 +463,109 @@ function initLiveView() {
         if (placeholder) placeholder.style.display = 'none';
     };
 
+    // Populate angles display
+    const anglesDiv = document.getElementById('angles-display');
+    if (anglesDiv) {
+        let html = '';
+        for (const mv of MOVEMENTS) {
+            const label = mv.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            html += `<div class="angle-row">
+                <span class="label">${label} L/R</span>
+                <span>
+                    <span class="value left" id="angle-${mv}-left">—°</span>
+                    <span style="color:var(--text-secondary)"> / </span>
+                    <span class="value right" id="angle-${mv}-right">—°</span>
+                </span>
+            </div>`;
+        }
+        anglesDiv.innerHTML = html;
+    }
+
+    // Mode toggle
+    const modeLive = document.getElementById('mode-live');
+    const modeCompare = document.getElementById('mode-compare');
+    const panelLive = document.getElementById('panel-live');
+    const panelCompare = document.getElementById('panel-compare');
+
+    modeLive?.addEventListener('click', () => {
+        modeLive.classList.add('active');
+        modeCompare?.classList.remove('active');
+        if (panelLive) panelLive.style.display = '';
+        if (panelCompare) panelCompare.style.display = 'none';
+    });
+
+    modeCompare?.addEventListener('click', () => {
+        modeCompare.classList.add('active');
+        modeLive?.classList.remove('active');
+        if (panelLive) panelLive.style.display = 'none';
+        if (panelCompare) panelCompare.style.display = '';
+    });
+
+    // Side selector
+    const btnLeft = document.getElementById('btn-side-left');
+    const btnRight = document.getElementById('btn-side-right');
+    btnLeft?.addEventListener('click', () => {
+        selectedSide = 'left';
+        btnLeft.classList.add('active');
+        btnRight?.classList.remove('active');
+    });
+    btnRight?.addEventListener('click', () => {
+        selectedSide = 'right';
+        btnRight.classList.add('active');
+        btnLeft?.classList.remove('active');
+    });
+
+    // Capture A
+    document.getElementById('btn-capture-a')?.addEventListener('click', () => {
+        capturedFrameA = {
+            keypoints: latestKeypoints ? JSON.parse(JSON.stringify(latestKeypoints)) : null,
+            angles: JSON.parse(JSON.stringify(latestAngles)),
+            time: new Date().toLocaleTimeString()
+        };
+        document.getElementById('compare-status').innerHTML =
+            `<span style="color:var(--accent-green)">✓ A captured (${capturedFrameA.time})</span> — Move arm, then capture B`;
+    });
+
+    // Capture B
+    document.getElementById('btn-capture-b')?.addEventListener('click', () => {
+        capturedFrameB = {
+            keypoints: latestKeypoints ? JSON.parse(JSON.stringify(latestKeypoints)) : null,
+            angles: JSON.parse(JSON.stringify(latestAngles)),
+            time: new Date().toLocaleTimeString()
+        };
+        document.getElementById('compare-status').innerHTML =
+            `<span style="color:var(--accent-green)">✓ A + B captured</span> — Click Compare`;
+    });
+
+    // Compare
+    document.getElementById('btn-compare')?.addEventListener('click', () => {
+        if (!capturedFrameA || !capturedFrameB) {
+            document.getElementById('compare-status').innerHTML = '<span style="color:var(--accent-red)">Capture both frames first</span>';
+            return;
+        }
+        comparisonActive = true;
+        showComparison(capturedFrameA, capturedFrameB, selectedSide);
+        if (skeleton3d) updateSkeleton3DComparison(capturedFrameA.keypoints, capturedFrameB.keypoints);
+        document.getElementById('legend-a').style.display = '';
+        document.getElementById('legend-b').style.display = '';
+        document.getElementById('legend-arrow').style.display = '';
+    });
+
+    // Reset
+    document.getElementById('btn-reset')?.addEventListener('click', () => {
+        capturedFrameA = null;
+        capturedFrameB = null;
+        comparisonActive = false;
+        document.getElementById('compare-result').innerHTML = '';
+        document.getElementById('compare-status').innerHTML = 'Select side → Capture A → Move → Capture B → Compare';
+        document.getElementById('legend-a').style.display = 'none';
+        document.getElementById('legend-b').style.display = 'none';
+        document.getElementById('legend-arrow').style.display = 'none';
+        if (skeleton3d) {
+            skeleton3d.skeletonGroup.children.filter(c => c.userData?.comp).forEach(c => skeleton3d.skeletonGroup.remove(c));
+        }
+    });
+
     // Init 3D skeleton
     initSkeleton3D();
 
