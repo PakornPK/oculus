@@ -157,35 +157,38 @@
                     </div>
                 </div>
 
-                <!-- Frame Comparison -->
+                <!-- ROM Comparison Mode -->
                 <div class="card">
                     <div class="card-header">
-                        <h2>Frame Comparison</h2>
-                        <div style="display:flex;gap:0.5rem">
-                            <button id="btn-capture-a" class="btn" style="font-size:0.75rem;padding:4px 8px">Capture A</button>
-                            <button id="btn-capture-b" class="btn" style="font-size:0.75rem;padding:4px 8px">Capture B</button>
-                            <button id="btn-compare" class="btn" style="font-size:0.75rem;padding:4px 8px;background:var(--accent)">Compare</button>
-                        </div>
+                        <h2>ROM Comparison</h2>
                     </div>
-                    <div id="compare-result" style="font-size:0.8rem;color:var(--text-secondary)">Capture two frames to compare angles</div>
-                </div>
-
-                <!-- Reference Selector -->
-                <div class="card">
-                    <div class="card-header">
-                        <h2>Angle Reference</h2>
+                    <!-- Side selector -->
+                    <div style="display:flex;gap:0.5rem;margin-bottom:0.75rem">
+                        <button id="btn-side-left" class="btn active" style="flex:1;font-size:0.8rem;padding:6px">Left Arm</button>
+                        <button id="btn-side-right" class="btn" style="flex:1;font-size:0.8rem;padding:6px">Right Arm</button>
                     </div>
-                    <div style="display:flex;gap:1rem;align-items:center">
-                        <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.85rem">
-                            <input type="radio" name="ref" value="torso" checked> Torso vertical
-                        </label>
-                        <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.85rem">
-                            <input type="radio" name="ref" value="gravity"> Absolute vertical
-                        </label>
-                        <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.85rem">
-                            <input type="radio" name="ref" value="horizontal"> Horizontal
-                        </label>
+                    <!-- Capture buttons -->
+                    <div style="display:flex;gap:0.5rem;margin-bottom:0.75rem">
+                        <button id="btn-capture-a" class="btn" style="flex:1;font-size:0.8rem;padding:6px;background:#1e293b">
+                            <div style="font-weight:600">A: Resting</div>
+                            <div style="font-size:0.7rem;opacity:0.7">Capture baseline</div>
+                        </button>
+                        <button id="btn-capture-b" class="btn" style="flex:1;font-size:0.8rem;padding:6px;background:#1e293b">
+                            <div style="font-weight:600">B: Max ROM</div>
+                            <div style="font-size:0.7rem;opacity:0.7">Capture peak</div>
+                        </button>
                     </div>
+                    <!-- Controls -->
+                    <div style="display:flex;gap:0.5rem;margin-bottom:0.75rem">
+                        <button id="btn-compare" class="btn" style="flex:1;font-size:0.8rem;padding:6px;background:var(--accent);color:#000">Compare A vs B</button>
+                        <button id="btn-reset" class="btn" style="font-size:0.8rem;padding:6px;background:var(--accent-red)">Reset</button>
+                    </div>
+                    <!-- Status -->
+                    <div id="compare-status" style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:0.5rem">
+                        Select side → Capture A (resting) → Move arm → Capture B (max) → Compare
+                    </div>
+                    <!-- Result table -->
+                    <div id="compare-result"></div>
                 </div>
 
                 <!-- Real-time chart -->

@@ -191,6 +191,58 @@ function initSkeleton3D() {
     skeleton3d = { scene, camera, renderer, spheres, lines, skeletonGroup, controls };
 }
 
+function updateSkeleton3DComparison(kpA, kpB) {
+    if (!skeleton3d || !kpA || !kpB) return;
+
+    const { spheres, lines, skeletonGroup } = skeleton3d;
+    const scale = 0.003;
+    const centerY = 1.0;
+
+    // Create Frame A spheres (green, semi-transparent)
+    const matA = new THREE.MeshBasicMaterial({ color: 0x4ade80, transparent: true, opacity: 0.6 });
+    const matB = new THREE.MeshBasicMaterial({ color: 0xf87171, transparent: true, opacity: 0.6 });
+    const geo = new THREE.SphereGeometry(0.012, 8, 8);
+
+    // Remove old comparison objects
+    skeletonGroup.children.filter(c => c.userData?.comp).forEach(c => skeletonGroup.remove(c));
+
+    // Add Frame A keypoints
+    for (let i = 0; i < 17; i++) {
+        if (kpA[i]?.confidence > 0.3) {
+            const s = new THREE.Mesh(geo, matA);
+            s.position.set((kpA[i].x - 320) * scale, centerY - (kpA[i].y - 180) * scale, 0);
+            s.userData = { comp: true, frame: 'A' };
+            skeletonGroup.add(s);
+        }
+    }
+
+    // Add Frame B keypoints
+    for (let i = 0; i < 17; i++) {
+        if (kpB[i]?.confidence > 0.3) {
+            const s = new THREE.Mesh(geo, matB);
+            s.position.set((kpB[i].x - 320) * scale, centerY - (kpB[i].y - 180) * scale, 0);
+            s.userData = { comp: true, frame: 'B' };
+            skeletonGroup.add(s);
+        }
+    }
+
+    // Draw movement arrows (A → B) for selected side
+    const indices = selectedSide === 'left' ? [5, 7, 9] : [6, 8, 10];
+    const arrowMat = new THREE.LineBasicMaterial({ color: 0xfbbf24 });
+    for (const i of indices) {
+        if (kpA[i]?.confidence > 0.3 && kpB[i]?.confidence > 0.3) {
+            const points = [
+                new THREE.Vector3((kpA[i].x - 320) * scale, centerY - (kpA[i].y - 180) * scale, 0),
+                new THREE.Vector3((kpB[i].x - 320) * scale, centerY - (kpB[i].y - 180) * scale, 0),
+            ];
+            const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
+            const arrow = new THREE.Line(lineGeo, arrowMat);
+            arrow.userData = { comp: true };
+            skeletonGroup.add(arrow);
+        }
+    }
+}
+
 function updateSkeleton3D(keypoints) {
     if (!skeleton3d || !keypoints || keypoints.length < 17) return;
 
@@ -244,8 +296,10 @@ function updateSkeleton3D(keypoints) {
 // Skeleton overlay state
 let latestKeypoints = null;
 let latestAngles = {};
-let capturedFrameA = null;
+let capturedFrameA = null;  // { keypoints, angles, time }
 let capturedFrameB = null;
+let selectedSide = 'left';  // 'left' or 'right'
+let comparisonActive = false;
 
 // Crop boundary state (user-adjustable)
 let cropRect = { x: 185, y: 0, w: 270, h: 360 };
@@ -419,21 +473,75 @@ function initLiveView() {
         maxPoints: 120,
     });
 
-    // Frame comparison buttons
+    // Side selector
+    const btnLeft = document.getElementById('btn-side-left');
+    const btnRight = document.getElementById('btn-side-right');
+    btnLeft?.addEventListener('click', () => {
+        selectedSide = 'left';
+        btnLeft.classList.add('active');
+        btnRight?.classList.remove('active');
+        showToast('Selected: Left arm');
+    });
+    btnRight?.addEventListener('click', () => {
+        selectedSide = 'right';
+        btnRight.classList.add('active');
+        btnLeft?.classList.remove('active');
+        showToast('Selected: Right arm');
+    });
+
+    // Capture buttons
     document.getElementById('btn-capture-a')?.addEventListener('click', () => {
-        capturedFrameA = { angles: JSON.parse(JSON.stringify(latestAngles)), time: new Date().toLocaleTimeString() };
-        showToast('Frame A captured');
+        capturedFrameA = {
+            keypoints: latestKeypoints ? JSON.parse(JSON.stringify(latestKeypoints)) : null,
+            angles: JSON.parse(JSON.stringify(latestAngles)),
+            time: new Date().toLocaleTimeString()
+        };
+        document.getElementById('compare-status').innerHTML =
+            `<span style="color:var(--accent-green)">A captured (${capturedFrameA.time})</span> — Move arm to max ROM, then capture B`;
+        showToast('Frame A captured (resting)');
     });
+
     document.getElementById('btn-capture-b')?.addEventListener('click', () => {
-        capturedFrameB = { angles: JSON.parse(JSON.stringify(latestAngles)), time: new Date().toLocaleTimeString() };
-        showToast('Frame B captured');
+        capturedFrameB = {
+            keypoints: latestKeypoints ? JSON.parse(JSON.stringify(latestKeypoints)) : null,
+            angles: JSON.parse(JSON.stringify(latestAngles)),
+            time: new Date().toLocaleTimeString()
+        };
+        document.getElementById('compare-status').innerHTML =
+            `<span style="color:var(--accent-green)">A (${capturedFrameA?.time || '—'}) + B (${capturedFrameB.time}) captured</span> — Click Compare`;
+        showToast('Frame B captured (max ROM)');
     });
+
+    // Compare button
     document.getElementById('btn-compare')?.addEventListener('click', () => {
         if (!capturedFrameA || !capturedFrameB) {
             showToast('Capture both frames first');
             return;
         }
-        showComparison(capturedFrameA, capturedFrameB);
+        comparisonActive = true;
+        showComparison(capturedFrameA, capturedFrameB, selectedSide);
+        // Update 3D skeleton to show both frames
+        if (skeleton3d) {
+            updateSkeleton3DComparison(capturedFrameA.keypoints, capturedFrameB.keypoints);
+        }
+    });
+
+    // Reset button
+    document.getElementById('btn-reset')?.addEventListener('click', () => {
+        capturedFrameA = null;
+        capturedFrameB = null;
+        comparisonActive = false;
+        document.getElementById('compare-result').innerHTML = '';
+        document.getElementById('compare-status').innerHTML =
+            'Select side → Capture A (resting) → Move arm → Capture B (max) → Compare';
+        // Reset 3D skeleton to live
+        if (skeleton3d) {
+            skeleton3d.skeletonGroup.children.forEach(c => {
+                if (c.userData?.frameA) c.visible = false;
+                if (c.userData?.frameB) c.visible = false;
+            });
+        }
+        showToast('Reset complete');
     });
 
     // Update chart title when movement selection changes
@@ -487,7 +595,7 @@ function initLiveView() {
     ws.connect();
 }
 
-function showComparison(a, b) {
+function showComparison(a, b, side) {
     const flatten = (data) => {
         const flat = {};
         const angles = data.angles?.angles || data.angles || {};
@@ -504,20 +612,24 @@ function showComparison(a, b) {
     const fa = flatten(a);
     const fb = flatten(b);
 
-    let html = `<div style="display:grid;grid-template-columns:1fr auto 1fr;gap:4px;font-size:0.8rem">`;
-    html += `<div style="font-weight:600">Frame A (${a.time})</div><div></div><div style="font-weight:600">Frame B (${b.time})</div>`;
+    let html = `<div style="font-size:0.75rem;margin-bottom:0.5rem">`;
+    html += `<strong>${side.toUpperCase()} ARM</strong> — A: ${a.time} vs B: ${b.time}</div>`;
+    html += `<div style="display:grid;grid-template-columns:1fr auto 1fr;gap:2px;font-size:0.8rem">`;
+    html += `<div style="font-weight:600;color:var(--accent)">A (Rest)</div>`;
+    html += `<div style="font-weight:600">Diff</div>`;
+    html += `<div style="font-weight:600;color:var(--accent-orange)">B (Max)</div>`;
 
     for (const mv of MOVEMENTS) {
-        const la = fa[`left_${mv}`] ?? 0;
-        const ra = fa[`right_${mv}`] ?? 0;
-        const lb = fb[`left_${mv}`] ?? 0;
-        const rb = fb[`right_${mv}`] ?? 0;
-        const diff = ((lb + rb) / 2 - (la + ra) / 2).toFixed(1);
-        const color = Math.abs(diff) > 10 ? 'var(--accent-red)' : 'var(--accent-green)';
+        const valA = fa[`${side}_${mv}`] ?? 0;
+        const valB = fb[`${side}_${mv}`] ?? 0;
+        const diff = valB - valA;
+        const color = Math.abs(diff) > 30 ? 'var(--accent-red)' :
+                      Math.abs(diff) > 10 ? 'var(--accent-orange)' :
+                      'var(--accent-green)';
 
-        html += `<div>${la.toFixed(1)}° / ${ra.toFixed(1)}°</div>`;
-        html += `<div style="color:${color}">${diff > 0 ? '+' : ''}${diff}°</div>`;
-        html += `<div>${lb.toFixed(1)}° / ${rb.toFixed(1)}°</div>`;
+        html += `<div>${valA.toFixed(1)}°</div>`;
+        html += `<div style="color:${color};font-weight:600">${diff > 0 ? '+' : ''}${diff.toFixed(1)}°</div>`;
+        html += `<div>${valB.toFixed(1)}°</div>`;
     }
 
     html += `</div>`;
