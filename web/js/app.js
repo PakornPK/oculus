@@ -576,21 +576,7 @@ function initLiveView() {
         maxPoints: 120,
     });
 
-    // Side selector
-    const btnLeft = document.getElementById('btn-side-left');
-    const btnRight = document.getElementById('btn-side-right');
-    btnLeft?.addEventListener('click', () => {
-        selectedSide = 'left';
-        btnLeft.classList.add('active');
-        btnRight?.classList.remove('active');
-        showToast('Selected: Left arm');
-    });
-    btnRight?.addEventListener('click', () => {
-        selectedSide = 'right';
-        btnRight.classList.add('active');
-        btnLeft?.classList.remove('active');
-        showToast('Selected: Right arm');
-    });
+
 
     // Capture buttons
     document.getElementById('btn-capture-a')?.addEventListener('click', () => {
