@@ -137,21 +137,55 @@ int run_demo(const std::string& video_path, int port, const std::string& model_p
                 pose.keypoints[4] = {380, 180, 0.8f};
             }
 
+            // Scale keypoints from model input (192x256) to video size (640x360)
+            float scale_x = static_cast<float>(frame.width) / 192.0f;
+            float scale_y = static_cast<float>(frame.height) / 256.0f;
+            for (auto& kp : pose.keypoints) {
+                kp.x *= scale_x;
+                kp.y *= scale_y;
+            }
+
             rom_analyzer.update(pose);
 
             cv::Mat cv_frame(frame.height, frame.width, CV_8UC3, frame.data.data());
             cv::Mat bgr_frame;
             cv::cvtColor(cv_frame, bgr_frame, cv::COLOR_RGB2BGR);
 
-            // Draw pose skeleton overlay
-            cv::circle(bgr_frame, cv::Point(pose.keypoints[5].x, pose.keypoints[5].y), 5, cv::Scalar(0, 255, 0), -1);
-            cv::circle(bgr_frame, cv::Point(pose.keypoints[6].x, pose.keypoints[6].y), 5, cv::Scalar(0, 255, 0), -1);
-            cv::circle(bgr_frame, cv::Point(pose.keypoints[7].x, pose.keypoints[7].y), 5, cv::Scalar(0, 0, 255), -1);
-            cv::circle(bgr_frame, cv::Point(pose.keypoints[8].x, pose.keypoints[8].y), 5, cv::Scalar(0, 0, 255), -1);
-            cv::line(bgr_frame, cv::Point(pose.keypoints[5].x, pose.keypoints[5].y),
-                     cv::Point(pose.keypoints[7].x, pose.keypoints[7].y), cv::Scalar(255, 0, 0), 2);
-            cv::line(bgr_frame, cv::Point(pose.keypoints[6].x, pose.keypoints[6].y),
-                     cv::Point(pose.keypoints[8].x, pose.keypoints[8].y), cv::Scalar(255, 0, 0), 2);
+            // Draw full skeleton (17 keypoints + bones)
+            const int skeleton[][2] = {
+                {0,1},{0,2},{1,3},{2,4},           // face
+                {5,6},                               // shoulders
+                {5,7},{7,9},                         // left arm
+                {6,8},{8,10},                        // right arm
+                {5,11},{6,12},                       // torso
+                {11,12},                             // hips
+                {11,13},{13,15},                     // left leg
+                {12,14},{14,16}                      // right leg
+            };
+
+            // Draw bones
+            for (const auto& bone : skeleton) {
+                int i = bone[0], j = bone[1];
+                if (i < pose.keypoints.size() && j < pose.keypoints.size()) {
+                    auto& a = pose.keypoints[i];
+                    auto& b = pose.keypoints[j];
+                    if (a.confidence > 0.3f && b.confidence > 0.3f) {
+                        cv::line(bgr_frame, cv::Point(a.x, a.y), cv::Point(b.x, b.y),
+                                 cv::Scalar(0, 255, 255), 2);
+                    }
+                }
+            }
+
+            // Draw keypoints
+            for (int i = 0; i < pose.keypoints.size(); ++i) {
+                auto& kp = pose.keypoints[i];
+                if (kp.confidence > 0.3f) {
+                    cv::Scalar color = (i == 5 || i == 7 || i == 9 || i == 11 || i == 13 || i == 15)
+                        ? cv::Scalar(0, 255, 0)   // left = green
+                        : cv::Scalar(0, 0, 255);   // right = red
+                    cv::circle(bgr_frame, cv::Point(kp.x, kp.y), 4, color, -1);
+                }
+            }
 
             PoseResult pose_result;
             pose_result.poses.push_back(pose);
@@ -160,27 +194,39 @@ int run_demo(const std::string& video_path, int port, const std::string& model_p
 
             server.increment_frame_count();
 
-            auto left_flex = rom_analyzer.get_rom(MovementType::FORWARD_FLEXION, Side::LEFT);
-            auto right_flex = rom_analyzer.get_rom(MovementType::FORWARD_FLEXION, Side::RIGHT);
-            auto left_abd = rom_analyzer.get_rom(MovementType::ABDUCTION, Side::LEFT);
-            auto right_abd = rom_analyzer.get_rom(MovementType::ABDUCTION, Side::RIGHT);
+            // Collect all ROM angles for all 11 movements
+            std::unordered_map<std::string, float> all_angles;
+            std::vector<std::pair<MovementType, std::string>> movements = {
+                {MovementType::ABDUCTION, "abduction"},
+                {MovementType::FORWARD_FLEXION, "forward_flexion"},
+                {MovementType::EXTENSION, "extension"},
+                {MovementType::EXTERNAL_ROTATION, "external_rotation"},
+                {MovementType::INTERNAL_ROTATION, "internal_rotation"},
+                {MovementType::ADDUCTION, "adduction"},
+                {MovementType::HORIZONTAL_ADDDUCTION, "horizontal_adduction"},
+                {MovementType::SCAPULAR_PROTRACTION, "scapular_protraction"},
+                {MovementType::SCAPULAR_RETRACTION, "scapular_retraction"},
+                {MovementType::SHOULDER_ELEVATION, "shoulder_elevation"},
+                {MovementType::SHOULDER_DEPRESSION, "shoulder_depression"},
+            };
+            for (const auto& [type, name] : movements) {
+                all_angles["left_" + name] = rom_analyzer.get_rom(type, Side::LEFT).max_angle;
+                all_angles["right_" + name] = rom_analyzer.get_rom(type, Side::RIGHT).max_angle;
+            }
 
-            // Add ROM angle text overlay on video
-            cv::putText(bgr_frame, "L-Flex: " + std::to_string(static_cast<int>(left_flex.max_angle)) + " deg",
-                        cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 255, 0), 2);
-            cv::putText(bgr_frame, "R-Flex: " + std::to_string(static_cast<int>(right_flex.max_angle)) + " deg",
-                        cv::Point(10, 60), cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 255, 0), 2);
+            // Text overlay on video
+            auto lf = all_angles["left_forward_flexion"];
+            auto ra = all_angles["right_abduction"];
+            cv::putText(bgr_frame, "L-Flex:" + std::to_string(static_cast<int>(lf)) + "d",
+                        cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 255, 0), 2);
+            cv::putText(bgr_frame, "R-Abd:" + std::to_string(static_cast<int>(ra)) + "d",
+                        cv::Point(10, 55), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 0, 255), 2);
 
             std::vector<uint8_t> jpeg_buf;
             cv::imencode(".jpg", bgr_frame, jpeg_buf);
             server.push_frame(jpeg_buf);
 
-            server.update_angles({
-                {"left_flexion", left_flex.max_angle},
-                {"right_flexion", right_flex.max_angle},
-                {"left_abduction", left_abd.max_angle},
-                {"right_abduction", right_abd.max_angle}
-            });
+            server.update_angles(all_angles);
 
             auto rom_result = rom_analyzer.get_result();
             server.update_result(rom_result);
@@ -188,8 +234,8 @@ int run_demo(const std::string& video_path, int port, const std::string& model_p
             if (frame_count % 30 == 0) {
                 spdlog::info("Frame {}: L-flex={:.0f}° R-flex={:.0f}° L-abd={:.0f}° R-abd={:.0f}°",
                     frame_count,
-                    left_flex.max_angle, right_flex.max_angle,
-                    left_abd.max_angle, right_abd.max_angle);
+                    all_angles["left_forward_flexion"], all_angles["right_forward_flexion"],
+                    all_angles["left_abduction"], all_angles["right_abduction"]);
             }
 
             frame_count++;

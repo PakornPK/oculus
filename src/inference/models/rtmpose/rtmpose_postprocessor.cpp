@@ -35,12 +35,11 @@ PoseResult RTMPosePostprocessor::process_simcc(
         int best_x = argmax_1d(x_data, SIMCC_X_SIZE);
         int best_y = argmax_1d(y_data, SIMCC_Y_SIZE);
 
-        // Softmax to get confidence
         float x_conf = x_data[best_x];
         float y_conf = y_data[best_y];
 
-        // Convert from SimCC coordinates to image coordinates
-        // SimCC uses 2x scale: index / 2.0 = pixel coordinate
+        // SimCC: index / 2.0 = coordinate in model input space (192x256)
+        // Then scale to original video size (will be done by caller)
         Keypoint kp;
         kp.x = static_cast<float>(best_x) / 2.0f;
         kp.y = static_cast<float>(best_y) / 2.0f;
