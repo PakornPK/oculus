@@ -265,15 +265,31 @@ function updateCompare3D(kpA, kpB) {
     // Clear previous comparison objects
     while (group.children.length > 0) group.remove(group.children[0]);
 
+    // Depth estimation helper
+    const estimateZ = (kp, i, refX) => {
+        const s = scale;
+        if (i === 0) return s * 0.8;
+        if (i === 1 || i === 2) return s * 0.7;
+        if (i === 3 || i === 4) return s * 0.5;
+        if (i === 5 || i === 6) return 0;
+        if (i === 7 || i === 8) return Math.abs(kp[i].x - refX) * s * 0.4;
+        if (i === 9 || i === 10) return Math.abs(kp[i].x - refX) * s * 0.6;
+        if (i === 11 || i === 12) return 0;
+        if (i === 13 || i === 14) return -s * 0.1;
+        if (i === 15 || i === 16) return -s * 0.2;
+        return 0;
+    };
+
     const drawSkeleton = (kp, mat, lineMat, offsetX) => {
         const spheres = [];
+        const refX = kp[6]?.x || 320;
         for (let i = 0; i < 17; i++) {
-            if (kp[i]?.confidence > 0.3 && isSideVisible(i)) {
+            if (kp[i]?.confidence > 0.3) {
                 const s = new THREE.Mesh(geo, mat);
                 s.position.set(
                     (kp[i].x - 320) * scale + offsetX,
                     centerY - (kp[i].y - 180) * scale,
-                    0
+                    estimateZ(kp, i, refX)
                 );
                 group.add(s);
                 spheres[i] = s;
@@ -290,8 +306,8 @@ function updateCompare3D(kpA, kpB) {
     };
 
     // Draw Frame A on left, Frame B on right (side by side)
-    const spheresA = drawSkeleton(kpA, matA, lineMatA, -0.4);
-    const spheresB = drawSkeleton(kpB, matB, lineMatB, 0.4);
+    const spheresA = drawSkeleton(kpA, matA, lineMatA, -0.5);
+    const spheresB = drawSkeleton(kpB, matB, lineMatB, 0.5);
 
     // Draw movement arrows for selected side's key joints
     const sideJointIndices = selectedSide === 'right' ? [6, 8, 10] : [5, 7, 9];
