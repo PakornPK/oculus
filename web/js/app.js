@@ -252,11 +252,27 @@ function initCompare3D() {
     compare3d = { scene, camera, renderer, group, controls, geo, matA, matB, lineMatA, lineMatB, arrowMat, arcMat, bones, width, height };
 }
 
+function flattenAngles(data) {
+    const flat = {};
+    const angles = data?.angles || data || {};
+    for (const [key, val] of Object.entries(angles)) {
+        if (typeof val === 'object' && val !== null) {
+            for (const [sub, v] of Object.entries(val)) {
+                flat[`${key}_${sub}`] = v;
+            }
+        }
+    }
+    return flat;
+}
+
 function updateCompare3D(kpA, kpB) {
     if (!compare3d || !kpA || !kpB) return;
 
     const { group, geo, matA, matB } = compare3d;
     const scale = 0.003;
+
+    // Debug: log comparison data
+    console.log('[CMP3D] updating', { kpA_len: kpA?.length, kpB_len: kpB?.length, selectedSide });
 
     while (group.children.length > 0) group.remove(group.children[0]);
 
@@ -602,6 +618,17 @@ function isSideVisible(idx) {
 
 function drawSkeletonOverlay(ctx, keypoints, w, h) {
     if (!keypoints || keypoints.length < 17) return;
+
+    // Debug: log keypoint positions for first few frames
+    if (window._skelDebug === undefined) window._skelDebug = 0;
+    if (window._skelDebug < 3) {
+        console.log(`[SKEL] canvas=${w}x${h} frame=${frameWidth}x${frameHeight}`);
+        for (const i of [5,6,7,8,9,10]) {
+            const kp = keypoints[i];
+            if (kp) console.log(`  kp[${i}]=(${kp.x.toFixed(1)},${kp.y.toFixed(1)}) conf=${kp.confidence.toFixed(2)}`);
+        }
+        window._skelDebug++;
+    }
 
     const showBoth = selectedSide === 'both';
 
