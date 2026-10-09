@@ -24,6 +24,7 @@ let isLive = true;
 let frameWidth = 640;
 let frameHeight = 360;
 let compare3d = null;
+let compareMode = false;
 let realtimeAngleChart = null;
 
 // ── Helpers ──
@@ -128,6 +129,27 @@ function updateSkeleton3D(keypoints) {
 
     while (group.children.length > 0) group.remove(group.children[0]);
 
+    // Body silhouette (always visible for context)
+    const bodyBones = [[5,6],[5,11],[6,12],[11,12]];
+    const bodyLineMat = new THREE.LineBasicMaterial({ color: 0x94a3b8, transparent: true, opacity: 0.6 });
+    const bodyDotMat = new THREE.MeshBasicMaterial({ color: 0x94a3b8, transparent: true, opacity: 0.6 });
+    for (const idx of [5,6,11,12]) {
+        const kp = keypoints[idx];
+        if (!kp || kp.confidence < 0.1) continue;
+        const sp = new THREE.Mesh(geo, bodyDotMat);
+        sp.position.set((kp.x - 320) * scale, centerY - (kp.y - 180) * scale, 0);
+        group.add(sp);
+    }
+    for (const [i,j] of bodyBones) {
+        const a = keypoints[i], b = keypoints[j];
+        if (!a || !b || a.confidence < 0.1 || b.confidence < 0.1) continue;
+        const pts = [
+            new THREE.Vector3((a.x - 320) * scale, centerY - (a.y - 180) * scale, 0),
+            new THREE.Vector3((b.x - 320) * scale, centerY - (b.y - 180) * scale, 0),
+        ];
+        group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), bodyLineMat));
+    }
+
     for (let i = 0; i < 17; i++) {
         const kp = keypoints[i];
         if (!kp || kp.confidence < 0.3 || !isSideVisible(i)) continue;
@@ -162,17 +184,17 @@ function updateCompare3D(kpA, kpB) {
 
     while (group.children.length > 0) group.remove(group.children[0]);
 
-    const si = selectedSide === 'right' ? 6 : 5;
-    const ei = selectedSide === 'right' ? 8 : 7;
-    const wi = selectedSide === 'right' ? 10 : 9;
+    const sidePairs = selectedSide === 'both'
+        ? [{ si: 5, ei: 7, wi: 9 }, { si: 6, ei: 8, wi: 10 }]
+        : [{ si: selectedSide === 'right' ? 6 : 5, ei: selectedSide === 'right' ? 8 : 7, wi: selectedSide === 'right' ? 10 : 9 }];
 
-    function drawArm(kp, mat, lineMat) {
-        const s = kp[si], e = kp[ei], w = kp[wi];
-        if (!s || !e || !w || s.confidence < 0.3) return null;
+    function drawArm(kp, mat, lineMat, indices) {
+        const s = kp[indices.si], e = kp[indices.ei], w = kp[indices.wi];
+        if (!s || !e || !w || s.confidence < 0.1) return null;
 
-        const shoulder = new THREE.Vector3(0, 0, 0);
-        const elbow = new THREE.Vector3((e.x - s.x) * scale, -(e.y - s.y) * scale, 0);
-        const wrist = new THREE.Vector3((w.x - s.x) * scale, -(w.y - s.y) * scale, 0);
+        const shoulder = new THREE.Vector3((s.x - 320) * scale, 1.0 - (s.y - 180) * scale, 0);
+        const elbow = new THREE.Vector3((e.x - 320) * scale, 1.0 - (e.y - 180) * scale, 0);
+        const wrist = new THREE.Vector3((w.x - 320) * scale, 1.0 - (w.y - 180) * scale, 0);
 
         for (const p of [shoulder, elbow, wrist]) {
             const sp = new THREE.Mesh(geo, mat);
@@ -188,7 +210,6 @@ function updateCompare3D(kpA, kpB) {
             }
         }
 
-        // Angle at shoulder (relative to vertical)
         const v1 = elbow.clone().sub(shoulder);
         const v2 = new THREE.Vector3(0, -1, 0);
         const mag = v1.length();
@@ -196,19 +217,59 @@ function updateCompare3D(kpA, kpB) {
         return { angle: Math.acos(cosA) * 180 / Math.PI };
     }
 
-    const armA = drawArm(kpA, matLeft, lineMatLeft);
-    const armB = drawArm(kpB, matRight, lineMatRight);
+    const armsA = sidePairs.map((indices, i) => drawArm(kpA, i === 0 ? matLeft : matRight, i === 0 ? lineMatLeft : lineMatRight, indices));
+    const armsB = sidePairs.map((indices, i) => drawArm(kpB, i === 0 ? matLeft : matRight, i === 0 ? lineMatLeft : lineMatRight, indices));
+
+    // Static body silhouette using frame A keypoints
+    const bodyBones = [[5,6],[5,11],[6,12],[11,12]];
+    const bodyMat = new THREE.LineBasicMaterial({ color: 0x94a3b8, transparent: true, opacity: 0.6 });
+    const bodyGeo = new THREE.SphereGeometry(0.012, 8, 8);
+    const bodyDotMat = new THREE.MeshBasicMaterial({ color: 0x94a3b8, transparent: true, opacity: 0.6 });
+    for (const idx of [5,6,11,12]) {
+        const kp = kpA[idx];
+        if (!kp || kp.confidence < 0.1) continue;
+        const sp = new THREE.Mesh(bodyGeo, bodyDotMat);
+        sp.position.set((kp.x - 320) * scale, 1.0 - (kp.y - 180) * scale, 0);
+        group.add(sp);
+    }
+    for (const [i,j] of bodyBones) {
+        const a = kpA[i], b = kpA[j];
+        if (!a || !b || a.confidence < 0.1 || b.confidence < 0.1) continue;
+        const pts = [
+            new THREE.Vector3((a.x - 320) * scale, 1.0 - (a.y - 180) * scale, 0),
+            new THREE.Vector3((b.x - 320) * scale, 1.0 - (b.y - 180) * scale, 0),
+        ];
+        group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), bodyMat));
+    }
 
     // Show ROM label
     const label = document.getElementById('compare3d-rom-label');
-    if (label && armA && armB) {
+    if (label) {
         const fa = flattenAngles(capturedFrameA?.angles);
         const fb = flattenAngles(capturedFrameB?.angles);
         const mv = document.getElementById('measure-movement')?.value || 'forward_flexion';
-        const side = selectedSide === 'right' ? 'right' : 'left';
-        const valA = fa[`${side}_${mv}`] ?? armA.angle;
-        const valB = fb[`${side}_${mv}`] ?? armB.angle;
-        label.innerHTML = `A: ${valA.toFixed(1)}° | B: ${valB.toFixed(1)}° | ROM: ${(valB - valA).toFixed(1)}°`;
+
+        if (selectedSide === 'both') {
+            const sides = ['left', 'right'];
+            const parts = sides.map((side, i) => {
+                const armA = armsA[i];
+                const armB = armsB[i];
+                if (!armA || !armB) return null;
+                const valA = fa[`${side}_${mv}`] ?? armA.angle;
+                const valB = fb[`${side}_${mv}`] ?? armB.angle;
+                return `${side.charAt(0).toUpperCase()}: ${valA.toFixed(1)}° → ${valB.toFixed(1)}° (${(valB - valA).toFixed(1)}°)`;
+            }).filter(Boolean);
+            label.innerHTML = parts.join(' | ');
+        } else {
+            const armA = armsA[0];
+            const armB = armsB[0];
+            if (armA && armB) {
+                const side = selectedSide === 'right' ? 'right' : 'left';
+                const valA = fa[`${side}_${mv}`] ?? armA.angle;
+                const valB = fb[`${side}_${mv}`] ?? armB.angle;
+                label.innerHTML = `A: ${valA.toFixed(1)}° | B: ${valB.toFixed(1)}° | ROM: ${(valB - valA).toFixed(1)}°`;
+            }
+        }
     }
 }
 
@@ -233,6 +294,29 @@ function drawSkeletonOverlay(ctx, keypoints, w, h) {
         ctx.moveTo(a.x * sx, a.y * sy);
         ctx.lineTo(b.x * sx, b.y * sy);
         ctx.stroke();
+    }
+
+    // Body silhouette (shoulders/hips)
+    const bodyBones = [[5,6],[5,11],[6,12],[11,12]];
+    ctx.strokeStyle = 'rgba(148,163,184,0.8)';
+    ctx.lineWidth = 2;
+    for (const [i,j] of bodyBones) {
+        const a = keypoints[i], b = keypoints[j];
+        if (!a || !b || a.confidence <= 0.1 || b.confidence <= 0.1) continue;
+        ctx.beginPath();
+        ctx.moveTo(a.x * sx, a.y * sy);
+        ctx.lineTo(b.x * sx, b.y * sy);
+        ctx.stroke();
+    }
+
+    // Body points (shoulders/hips)
+    for (const idx of [5,6,11,12]) {
+        const kp = keypoints[idx];
+        if (!kp || kp.confidence <= 0.1) continue;
+        ctx.beginPath();
+        ctx.arc(kp.x * sx, kp.y * sy, 4, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(148,163,184,0.8)';
+        ctx.fill();
     }
 
     // Keypoints
@@ -338,21 +422,18 @@ function initLiveView() {
         const fa = flattenAngles(capturedFrameA.angles);
         const fb = flattenAngles(capturedFrameB.angles);
 
-        // Use 'left' for lookup when side is 'both'
-        const lookupSide = selectedSide === 'both' ? 'left' : selectedSide;
-        const side = lookupSide;
-        const valA = fa[`${side}_${movement}`] ?? 0;
-        const valB = fb[`${side}_${movement}`] ?? 0;
-        const rom = valB - valA;
-        const abs = Math.abs(rom);
-        const severity = abs < 10 ? 'Normal' : abs < 30 ? 'Mild' : abs < 60 ? 'Moderate' : 'Severe';
-        const color = abs < 10 ? '#2ECC71' : abs < 30 ? '#F5A623' : '#E74C3C';
         const label = movement.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-
-        const res = document.getElementById('measure-result');
-        if (res) {
-            res.innerHTML = `
-                <div style="background:var(--bg-card);border-radius:8px;padding:1rem;border-left:4px solid ${color}">
+        const sidesToMeasure = selectedSide === 'both' ? ['left', 'right'] : [selectedSide];
+        let html = '';
+        for (const side of sidesToMeasure) {
+            const valA = fa[`${side}_${movement}`] ?? 0;
+            const valB = fb[`${side}_${movement}`] ?? 0;
+            const rom = valB - valA;
+            const abs = Math.abs(rom);
+            const severity = abs < 10 ? 'Normal' : abs < 30 ? 'Mild' : abs < 60 ? 'Moderate' : 'Severe';
+            const color = abs < 10 ? '#2ECC71' : abs < 30 ? '#F5A623' : '#E74C3C';
+            html += `
+                <div style="background:var(--bg-card);border-radius:8px;padding:1rem;border-left:4px solid ${color};margin-bottom:0.5rem">
                     <div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:0.5rem">${label} — ${side.toUpperCase()}</div>
                     <div style="display:flex;justify-content:space-between;margin-bottom:0.5rem">
                         <div style="text-align:center">
@@ -372,23 +453,17 @@ function initLiveView() {
                 </div>`;
         }
 
-        // Update 3D comparison
-        const c3d = document.getElementById('compare3d-container');
-        const live3d = document.getElementById('skeleton3d-container');
-        if (c3d) c3d.style.display = '';
-        if (live3d) live3d.style.display = 'none';
+        const res = document.getElementById('measure-result');
+        if (res) {
+            res.innerHTML = html;
+        }
+
+        // Update 3D comparison using existing live view
+        compareMode = true;
         if (compare3d) {
-            // Resize renderer when shown
-            if (c3d) {
-                const w = c3d.clientWidth || 400;
-                const h = c3d.clientHeight || 400;
-                compare3d.renderer.setSize(w, h);
-                compare3d.camera.aspect = w / h;
-                compare3d.camera.updateProjectionMatrix();
-            }
             updateCompare3D(capturedFrameA.keypoints, capturedFrameB.keypoints);
         }
-        showToast(`${label} ROM: ${rom.toFixed(1)}° (${severity})`);
+        showToast(`${label} ROM measured for ${selectedSide.toUpperCase()}`);
     });
 
     // Reset
@@ -400,10 +475,8 @@ function initLiveView() {
         const st = document.getElementById('capture-status');
         if (st) st.innerHTML = 'Press A at resting, B at max ROM';
         // Switch back to live 3D
-        const c3d = document.getElementById('compare3d-container');
-        const live3d = document.getElementById('skeleton3d-container');
-        if (c3d) c3d.style.display = 'none';
-        if (live3d) live3d.style.display = '';
+        compareMode = false;
+        if (compare3d && latestKeypoints) updateSkeleton3D(latestKeypoints);
         showToast('Reset');
     });
 
@@ -427,7 +500,7 @@ function initLiveView() {
                 latestKeypoints = data.keypoints;
                 if (data.frame_width) frameWidth = data.frame_width;
                 if (data.frame_height) frameHeight = data.frame_height;
-                if (compare3d) updateSkeleton3D(data.keypoints);
+                if (compare3d && !compareMode) updateSkeleton3D(data.keypoints);
             }
 
             // Angles

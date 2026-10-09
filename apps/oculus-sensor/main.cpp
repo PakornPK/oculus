@@ -252,10 +252,7 @@ int run_demo(const std::string& video_path, int port,
                 }
             }
 
-            // Confidence overlay
-            cv::putText(bgr_frame,
-                "Conf: H=" + std::to_string(high_conf) + " M=" + std::to_string(med_conf) + " L=" + std::to_string(low_conf),
-                cv::Point(10, frame.height - 10), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
+            // Confidence overlay removed per user request
 
             PoseResult pose_result;
             pose_result.poses.push_back(pose);
@@ -284,13 +281,6 @@ int run_demo(const std::string& video_path, int port,
                 all_angles["right_" + name] = rom_analyzer.get_current_angle(type, Side::RIGHT);
             }
 
-            // Text overlay on video
-            auto lf = all_angles["left_forward_flexion"];
-            auto ra = all_angles["right_abduction"];
-            cv::putText(bgr_frame, "L-Flex:" + std::to_string(static_cast<int>(lf)) + "d",
-                        cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 255, 0), 2);
-            cv::putText(bgr_frame, "R-Abd:" + std::to_string(static_cast<int>(ra)) + "d",
-                        cv::Point(10, 55), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 0, 255), 2);
 
             std::vector<uint8_t> jpeg_buf;
             cv::imencode(".jpg", bgr_frame, jpeg_buf);
