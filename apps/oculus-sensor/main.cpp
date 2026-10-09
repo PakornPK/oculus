@@ -137,12 +137,29 @@ int run_demo(const std::string& video_path, int port, const std::string& model_p
                 pose.keypoints[4] = {380, 180, 0.8f};
             }
 
-            // Scale keypoints from model input (192x256) to video size (640x360)
-            float scale_x = static_cast<float>(frame.width) / 192.0f;
-            float scale_y = static_cast<float>(frame.height) / 256.0f;
+            // Scale keypoints from model input to video frame
+            // Account for center crop (person detection)
+            float model_aspect = 192.0f / 256.0f;
+            float frame_aspect = static_cast<float>(frame.width) / frame.height;
+            int crop_x = 0, crop_y = 0, crop_w = frame.width, crop_h = frame.height;
+
+            if (frame_aspect > model_aspect) {
+                crop_h = frame.height;
+                crop_w = static_cast<int>(crop_h * model_aspect);
+                crop_x = (frame.width - crop_w) / 2;
+                crop_y = 0;
+            } else {
+                crop_w = frame.width;
+                crop_h = static_cast<int>(crop_w / model_aspect);
+                crop_x = 0;
+                crop_y = (frame.height - crop_h) / 2;
+            }
+
+            float scale_x = static_cast<float>(crop_w) / 192.0f;
+            float scale_y = static_cast<float>(crop_h) / 256.0f;
             for (auto& kp : pose.keypoints) {
-                kp.x *= scale_x;
-                kp.y *= scale_y;
+                kp.x = kp.x * scale_x + crop_x;
+                kp.y = kp.y * scale_y + crop_y;
             }
 
             rom_analyzer.update(pose);
