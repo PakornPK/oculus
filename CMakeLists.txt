@@ -21,6 +21,7 @@ set(OCULUS_SOURCES
     src/rom/shoulder_rom_analyzer.cpp
     src/rom/session_manager.cpp
     src/rom/calibrator.cpp
+    src/rom/recipe.cpp
     src/http/web_server.cpp
     src/storage/storage.cpp
     src/runtime/watchdog.cpp
