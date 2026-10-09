@@ -23,6 +23,9 @@ set(OCULUS_SOURCES
     src/rom/calibrator.cpp
     src/rom/recipe.cpp
     src/rom/formula.cpp
+    src/rom/markers.cpp
+    src/rom/roi.cpp
+    src/rom/exporter.cpp
     src/http/web_server.cpp
     src/storage/storage.cpp
     src/runtime/watchdog.cpp
