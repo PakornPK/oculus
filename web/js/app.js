@@ -402,35 +402,28 @@ function initLiveView() {
         try {
             const data = JSON.parse(e.data);
 
-            if (data.type === 'video_frame' && data.frame) {
+            // Video frame (base64 JPEG)
+            if (data.frame && typeof data.frame === 'string') {
                 frameImg.src = 'data:image/jpeg;base64,' + data.frame;
             }
 
-            if (data.type === 'keypoints') {
+            // Keypoints
+            if (data.keypoints && Array.isArray(data.keypoints)) {
                 latestKeypoints = data.keypoints;
                 if (data.frame_width) frameWidth = data.frame_width;
                 if (data.frame_height) frameHeight = data.frame_height;
                 if (compare3d) updateSkeleton3D(data.keypoints);
             }
 
-            if (data.type === 'rom_angles') {
+            // Angles
+            if (data.angles && typeof data.angles === 'object') {
                 latestAngles = data;
-                // Update chart
                 if (realtimeAngleChart && typeof ChartUtils !== 'undefined') {
                     const flat = flattenAngles(data);
-                    const l = flat[`left_abduction`] ?? 0;
-                    const r = flat[`right_abduction`] ?? 0;
+                    const l = flat['left_abduction'] ?? 0;
+                    const r = flat['right_abduction'] ?? 0;
                     ChartUtils.pushChartData(realtimeAngleChart, new Date().toLocaleTimeString(), [l, r]);
                 }
-            }
-
-            // Also handle combined data
-            if (data.frame && data.keypoints) {
-                frameImg.src = 'data:image/jpeg;base64,' + data.frame;
-                latestKeypoints = data.keypoints;
-            }
-            if (data.angles) {
-                latestAngles = data;
             }
         } catch (err) {}
     };
