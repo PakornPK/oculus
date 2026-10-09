@@ -26,6 +26,7 @@ set(OCULUS_SOURCES
     src/rom/markers.cpp
     src/rom/roi.cpp
     src/rom/exporter.cpp
+    src/rom/pipeline.cpp
     src/http/web_server.cpp
     src/storage/storage.cpp
     src/runtime/watchdog.cpp

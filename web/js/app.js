@@ -256,20 +256,20 @@ function updateCompare3D(kpA, kpB) {
     if (!compare3d || !kpA || !kpB) return;
 
     const { group, geo, matA, matB, arrowMat } = compare3d;
-    const scale = 0.004;
+    const scale = 0.003;  // Same as live 3D
 
     while (group.children.length > 0) group.remove(group.children[0]);
 
     // Get shoulder, elbow, wrist for selected side
-    const si = selectedSide === 'right' ? 6 : 5;  // shoulder
-    const ei = selectedSide === 'right' ? 8 : 7;  // elbow
-    const wi = selectedSide === 'right' ? 10 : 9; // wrist
+    const si = selectedSide === 'right' ? 6 : 5;
+    const ei = selectedSide === 'right' ? 8 : 7;
+    const wi = selectedSide === 'right' ? 10 : 9;
 
-    const drawArm = (kp, mat, label) => {
+    const drawArm = (kp, mat) => {
         const s = kp[si], e = kp[ei], w = kp[wi];
         if (!s || !e || !w || s.confidence < 0.3) return null;
 
-        // Origin at shoulder, arm extends from there
+        // Origin at shoulder, arm extends from there (Y inverted for 3D)
         const shoulder = new THREE.Vector3(0, 0, 0);
         const elbow = new THREE.Vector3(
             (e.x - s.x) * scale,
@@ -282,14 +282,12 @@ function updateCompare3D(kpA, kpB) {
             0
         );
 
-        // Keypoints
         for (const p of [shoulder, elbow, wrist]) {
             const sp = new THREE.Mesh(geo, mat);
             sp.position.copy(p);
             group.add(sp);
         }
 
-        // Bones (shoulder→elbow→wrist)
         const boneMat = new THREE.LineBasicMaterial({ color: mat.color.getHex() });
         for (const [a, b] of [[shoulder, elbow], [elbow, wrist]]) {
             const lineGeo = new THREE.BufferGeometry().setFromPoints([a, b]);
@@ -298,10 +296,9 @@ function updateCompare3D(kpA, kpB) {
 
         // Angle arc at shoulder
         const v1 = elbow.clone().sub(shoulder).normalize();
-        const v2 = new THREE.Vector3(0, -1, 0); // vertical down
+        const v2 = new THREE.Vector3(0, -1, 0);
         const angle = Math.acos(Math.max(-1, Math.min(1, v1.dot(v2)))) * 180 / Math.PI;
 
-        // Draw arc
         const arcMat = new THREE.LineBasicMaterial({ color: 0xfbbf24 });
         const arcPoints = [];
         const segments = 20;
@@ -311,29 +308,23 @@ function updateCompare3D(kpA, kpB) {
         for (let i = 0; i <= segments; i++) {
             const t = i / segments;
             const a = startAngle + (endAngle - startAngle) * t;
-            arcPoints.push(new THREE.Vector3(
-                Math.cos(a) * radius,
-                Math.sin(a) * radius,
-                0
-            ));
+            arcPoints.push(new THREE.Vector3(Math.cos(a) * radius, Math.sin(a) * radius, 0));
         }
-        const arcGeo = new THREE.BufferGeometry().setFromPoints(arcPoints);
-        group.add(new THREE.Line(arcGeo, arcMat));
+        group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(arcPoints), arcMat));
 
-        // Reference line (vertical down from shoulder)
+        // Reference line
         const refEnd = new THREE.Vector3(0, -0.3, 0);
-        const refGeo = new THREE.BufferGeometry().setFromPoints([shoulder, refEnd]);
-        const refMat = new THREE.LineBasicMaterial({ color: 0x475569, transparent: true, opacity: 0.5 });
-        group.add(new THREE.Line(refGeo, refMat));
+        group.add(new THREE.Line(
+            new THREE.BufferGeometry().setFromPoints([shoulder, refEnd]),
+            new THREE.LineBasicMaterial({ color: 0x475569, transparent: true, opacity: 0.5 })
+        ));
 
         return { shoulder, elbow, wrist, angle };
     };
 
-    // Draw both arms overlaid at shoulder origin
-    const armA = drawArm(kpA, matA, 'A');
-    const armB = drawArm(kpB, matB, 'B');
+    const armA = drawArm(kpA, matA);
+    const armB = drawArm(kpB, matB);
 
-    // Show angle label
     if (armA && armB) {
         const delta = armB.angle - armA.angle;
         const label = document.getElementById('compare3d-rom-label');
