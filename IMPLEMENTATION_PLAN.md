@@ -1051,6 +1051,72 @@ The MVP is complete when:
 
 ---
 
+## Phase 14: Stereo Depth Integration
+
+**Goal**: Improve shoulder ROM accuracy using Orbbec Astra Pro depth camera and point cloud processing. Target: ±5-10° for simple movements, ±2-3° precision with smoothing.
+
+**Hardware**: Orbbec Astra Pro Plus (structured light, 640x480 depth @ 30fps, ±3mm @ 1m). Note: Astra Pro Plus is in "limited maintenance" mode; consider Astra 2 for long-term SDK support.
+
+**Chosen pathway**: SimpleDepthPose + temporal smoothing + confidence weighting (hardware-efficient, stable, near real-time).
+
+**Architecture**:
+```
+RTMPose (TensorRT FP16) → 2D keypoints (3ms)
+  ↓
+Depth lookup at keypoint pixels (median filter, 3ms)
+  ↓
+3D via camera intrinsics + per-joint offset (+3cm shoulder)
+  ↓
+Temporal smoothing (EMA α=0.3, window=5)
+  ↓
+Confidence-weighted angle calculation
+```
+
+**Tasks**:
+
+1. **Depth camera integration** (`src/camera/orbbec_camera.cpp`)
+   - Orbbec SDK v1 (Astra SDK 2.1.3) or OpenNI2 for Astra Pro Plus
+   - RGB + depth stream capture at 30fps
+   - Depth-to-RGB alignment via SDK or OpenCV `stereoCalibrate`
+
+2. **Calibration** (`src/rom/depth_calibrator.cpp`)
+   - ChArUco board for intrinsic/extrinsic calibration
+   - `cv::initUndistortRectifyMap` + `cv::remap` for real-time distortion correction
+   - Per-joint depth offset calibration (shoulder +3cm starting point)
+
+3. **SimpleDepthPose lifting** (`src/inference/depth_pose_lifter.cpp`)
+   - Cross-shaped median filter at 2D keypoint pixel locations
+   - Per-joint depth offsets (shoulder: +3cm, elbow: +2cm, wrist: +1cm)
+   - Convert to 3D via camera intrinsics
+   - ~3ms latency
+
+4. **Temporal smoothing** (`src/rom/angle_smoother.cpp`)
+   - EMA smoothing (α=0.3, window=5 frames)
+   - Confidence weighting: reject keypoints <0.3 confidence
+   - Reduces noise from ±5° to ±2-3° precision
+
+5. **Point cloud shoulder geometry** (Phase 2, deferred)
+   - RTMPose keypoint → depth ROI crop → point cloud extraction
+   - Normal estimation (PCL `NormalEstimationUsingIntegralImages`)
+   - RANSAC plane fitting for glenoid orientation
+   - For internal/external rotation measurements
+   - ~10-50ms latency
+
+6. **IMU integration for rotation** (Phase 2, optional)
+   - Small IMU sensor (BNO055/MPU6050) on wrist/forearm
+   - BLE/USB integration for orientation data
+   - ±1-2° accuracy for internal/external rotation
+   - Calibrate once per session
+
+**Accuracy targets**:
+- Flexion/abduction: ±5-10° (Phase 1)
+- Rotations: ±10-15° (Phase 2 with point cloud/IMU)
+- Precision: ±2-3° with temporal smoothing
+
+**Research**: See `research/orbbec-astra-pro-stereo-rom/REPORT.md` for full analysis (87 sources).
+
+---
+
 ## Next Steps
 
 1. Review and approve this implementation plan
