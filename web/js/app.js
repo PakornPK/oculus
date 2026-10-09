@@ -704,9 +704,28 @@ function initLiveView() {
         }
     }
 
-    btnLeft?.addEventListener('click', () => setSide('left'));
-    btnRight?.addEventListener('click', () => setSide('right'));
-    btnBoth?.addEventListener('click', () => setSide('both'));
+    function updateWorkflow(step) {
+        const steps = ['wf-step1', 'wf-step2', 'wf-step3', 'wf-step4'];
+        steps.forEach((id, i) => {
+            const el = document.getElementById(id);
+            if (el) {
+                if (i < step) {
+                    el.style.color = 'var(--accent-green)';
+                    el.textContent = el.textContent.replace('○', '●');
+                } else if (i === step) {
+                    el.style.color = 'var(--accent)';
+                    el.textContent = el.textContent.replace('○', '●');
+                } else {
+                    el.style.color = 'var(--text-secondary)';
+                    el.textContent = el.textContent.replace('●', '○');
+                }
+            }
+        });
+    }
+
+    btnLeft?.addEventListener('click', () => { setSide('left'); updateWorkflow(1); });
+    btnRight?.addEventListener('click', () => { setSide('right'); updateWorkflow(1); });
+    btnBoth?.addEventListener('click', () => { setSide('both'); updateWorkflow(1); });
 
     // Capture A
     document.getElementById('btn-capture-a')?.addEventListener('click', () => {
@@ -717,6 +736,7 @@ function initLiveView() {
         };
         document.getElementById('capture-status').innerHTML =
             `<span style="color:var(--accent-green)">✓ A captured (${capturedFrameA.time})</span>`;
+        updateWorkflow(2);
         showToast('Frame A captured (resting)');
     });
 
@@ -729,6 +749,7 @@ function initLiveView() {
         };
         document.getElementById('capture-status').innerHTML =
             `<span style="color:var(--accent-green)">✓ A (${capturedFrameA?.time || '—'}) + B (${capturedFrameB.time})</span>`;
+        updateWorkflow(3);
         showToast('Frame B captured (max ROM)');
     });
 
