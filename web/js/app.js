@@ -198,56 +198,160 @@ function initSkeleton3D() {
     skeleton3d = { scene, camera, renderer, spheres, lines, skeletonGroup, controls };
 }
 
-function updateSkeleton3DComparison(kpA, kpB) {
-    if (!skeleton3d || !kpA || !kpB) return;
+// Dedicated comparison 3D scene
+let compare3d = null;
 
-    const { spheres, lines, skeletonGroup } = skeleton3d;
+function initCompare3D() {
+    const container = document.getElementById('compare3d-container');
+    if (!container) return;
+
+    const canvas = document.getElementById('compare3d-canvas');
+    // Use default size if container is hidden
+    const width = container.clientWidth || 400;
+    const height = container.clientHeight || 400;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0f172a);
+
+    const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1000);
+    camera.position.set(0, 1.2, 2.5);
+    camera.lookAt(0, 1, 0);
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setSize(width, height);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.target.set(0, 1, 0);
+
+    const grid = new THREE.GridHelper(3, 15, 0x475569, 0x1e293b);
+    scene.add(grid);
+
+    const group = new THREE.Group();
+    scene.add(group);
+
+    // Materials for A (green) and B (red) skeletons
+    const matA = new THREE.MeshBasicMaterial({ color: 0x4ade80 });
+    const matB = new THREE.MeshBasicMaterial({ color: 0xf87171 });
+    const geo = new THREE.SphereGeometry(0.015, 12, 12);
+    const lineMatA = new THREE.LineBasicMaterial({ color: 0x4ade80, transparent: true, opacity: 0.8 });
+    const lineMatB = new THREE.LineBasicMaterial({ color: 0xf87171, transparent: true, opacity: 0.8 });
+    const arrowMat = new THREE.LineBasicMaterial({ color: 0xfbbf24 });
+    const arcMat = new THREE.LineBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.6 });
+
+    const bones = [
+        [0,1],[0,2],[1,3],[2,4],[5,6],[5,7],[7,9],[6,8],[8,10],
+        [5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16]
+    ];
+
+    function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+    }
+    animate();
+
+    compare3d = { scene, camera, renderer, group, controls, geo, matA, matB, lineMatA, lineMatB, arrowMat, arcMat, bones, width, height };
+}
+
+function updateCompare3D(kpA, kpB) {
+    if (!compare3d || !kpA || !kpB) return;
+
+    const { group, geo, matA, matB, lineMatA, lineMatB, arrowMat, bones } = compare3d;
     const scale = 0.003;
     const centerY = 1.0;
 
-    // Create Frame A spheres (green, semi-transparent)
-    const matA = new THREE.MeshBasicMaterial({ color: 0x4ade80, transparent: true, opacity: 0.6 });
-    const matB = new THREE.MeshBasicMaterial({ color: 0xf87171, transparent: true, opacity: 0.6 });
-    const geo = new THREE.SphereGeometry(0.012, 8, 8);
+    // Clear previous comparison objects
+    while (group.children.length > 0) group.remove(group.children[0]);
 
-    // Remove old comparison objects
-    skeletonGroup.children.filter(c => c.userData?.comp).forEach(c => skeletonGroup.remove(c));
+    const drawSkeleton = (kp, mat, lineMat, offsetX) => {
+        const spheres = [];
+        for (let i = 0; i < 17; i++) {
+            if (kp[i]?.confidence > 0.3 && isSideVisible(i)) {
+                const s = new THREE.Mesh(geo, mat);
+                s.position.set(
+                    (kp[i].x - 320) * scale + offsetX,
+                    centerY - (kp[i].y - 180) * scale,
+                    0
+                );
+                group.add(s);
+                spheres[i] = s;
+            }
+        }
+        for (const [i, j] of bones) {
+            if (spheres[i] && spheres[j]) {
+                const pts = [spheres[i].position.clone(), spheres[j].position.clone()];
+                const lineGeo = new THREE.BufferGeometry().setFromPoints(pts);
+                group.add(new THREE.Line(lineGeo, lineMat));
+            }
+        }
+        return spheres;
+    };
 
-    // Add Frame A keypoints
-    for (let i = 0; i < 17; i++) {
-        if (kpA[i]?.confidence > 0.3) {
-            const s = new THREE.Mesh(geo, matA);
-            s.position.set((kpA[i].x - 320) * scale, centerY - (kpA[i].y - 180) * scale, 0);
-            s.userData = { comp: true, frame: 'A' };
-            skeletonGroup.add(s);
+    // Draw Frame A on left, Frame B on right (side by side)
+    const spheresA = drawSkeleton(kpA, matA, lineMatA, -0.4);
+    const spheresB = drawSkeleton(kpB, matB, lineMatB, 0.4);
+
+    // Draw movement arrows for selected side's key joints
+    const sideJointIndices = selectedSide === 'right' ? [6, 8, 10] : [5, 7, 9];
+    for (const i of sideJointIndices) {
+        if (spheresA[i] && spheresB[i]) {
+            const pts = [spheresA[i].position.clone(), spheresB[i].position.clone()];
+            const lineGeo = new THREE.BufferGeometry().setFromPoints(pts);
+            group.add(new THREE.Line(lineGeo, arrowMat));
         }
     }
 
-    // Add Frame B keypoints
-    for (let i = 0; i < 17; i++) {
-        if (kpB[i]?.confidence > 0.3) {
-            const s = new THREE.Mesh(geo, matB);
-            s.position.set((kpB[i].x - 320) * scale, centerY - (kpB[i].y - 180) * scale, 0);
-            s.userData = { comp: true, frame: 'B' };
-            skeletonGroup.add(s);
-        }
+    // Show ROM delta as text overlay
+    const romLabel = document.getElementById('compare3d-rom-label');
+    if (romLabel) {
+        const flattenAngles = (data) => {
+            const flat = {};
+            const angles = data?.angles?.angles || data?.angles || {};
+            for (const [key, val] of Object.entries(angles)) {
+                if (typeof val === 'object' && val !== null) {
+                    for (const [sub, v] of Object.entries(val)) {
+                        flat[`${key}_${sub}`] = v;
+                    }
+                }
+            }
+            return flat;
+        };
+        const fa = flattenAngles(capturedFrameA);
+        const fb = flattenAngles(capturedFrameB);
+        const romA = fa[`${selectedSide}_abduction`] ?? 0;
+        const romB = fb[`${selectedSide}_abduction`] ?? 0;
+        const diff = romB - romA;
+        romLabel.innerHTML = `<strong>${selectedSide.toUpperCase()}</strong> Abduction: ${romA.toFixed(0)}° → ${romB.toFixed(0)}° <span style="color:${Math.abs(diff) > 30 ? 'var(--accent-red)' : Math.abs(diff) > 10 ? 'var(--accent-orange)' : 'var(--accent-green)'}">(${diff > 0 ? '+' : ''}${diff.toFixed(1)}°)</span>`;
     }
+}
 
-    // Draw movement arrows (A → B) for selected side
-    const indices = selectedSide === 'left' ? [5, 7, 9] : [6, 8, 10];
-    const arrowMat = new THREE.LineBasicMaterial({ color: 0xfbbf24 });
-    for (const i of indices) {
-        if (kpA[i]?.confidence > 0.3 && kpB[i]?.confidence > 0.3) {
-            const points = [
-                new THREE.Vector3((kpA[i].x - 320) * scale, centerY - (kpA[i].y - 180) * scale, 0),
-                new THREE.Vector3((kpB[i].x - 320) * scale, centerY - (kpB[i].y - 180) * scale, 0),
-            ];
-            const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
-            const arrow = new THREE.Line(lineGeo, arrowMat);
-            arrow.userData = { comp: true };
-            skeletonGroup.add(arrow);
-        }
+function swapToCompare3D() {
+    const liveContainer = document.getElementById('skeleton3d-container');
+    const compareContainer = document.getElementById('compare3d-container');
+    const title = document.getElementById('view3d-title');
+    if (liveContainer) liveContainer.style.display = 'none';
+    if (compareContainer) compareContainer.style.display = '';
+    if (title) title.textContent = '3D Comparison';
+
+    // Resize renderer when container becomes visible
+    if (compare3d && compareContainer) {
+        const w = compareContainer.clientWidth || 400;
+        const h = compareContainer.clientHeight || 400;
+        compare3d.renderer.setSize(w, h);
+        compare3d.camera.aspect = w / h;
+        compare3d.camera.updateProjectionMatrix();
     }
+}
+
+function swapToLive3D() {
+    const liveContainer = document.getElementById('skeleton3d-container');
+    const compareContainer = document.getElementById('compare3d-container');
+    const title = document.getElementById('view3d-title');
+    if (liveContainer) liveContainer.style.display = '';
+    if (compareContainer) compareContainer.style.display = 'none';
+    if (title) title.textContent = '3D View';
 }
 
 function updateSkeleton3D(keypoints) {
@@ -263,6 +367,8 @@ function updateSkeleton3D(keypoints) {
     const shoulderWidth = (ls && rs && ls.confidence > 0.3 && rs.confidence > 0.3)
         ? Math.abs(ls.x - rs.x) : 100;
     const depthScale = shoulderWidth * scale * 0.5;
+
+    const showBoth = selectedSide === 'both';
 
     for (let i = 0; i < 17; i++) {
         const kp = keypoints[i];
@@ -291,6 +397,18 @@ function updateSkeleton3D(keypoints) {
                 z
             );
             spheres[i].visible = true;
+
+            // Dim non-selected side
+            if (!showBoth) {
+                const isLeft = LEFT_INDICES.has(i);
+                const isRight = RIGHT_INDICES.has(i);
+                const isSelected = (selectedSide === 'left' && isLeft) || (selectedSide === 'right' && isRight);
+                spheres[i].material.transparent = !isSelected;
+                spheres[i].material.opacity = isSelected ? 1.0 : 0.15;
+            } else {
+                spheres[i].material.transparent = false;
+                spheres[i].material.opacity = 1.0;
+            }
         } else {
             spheres[i].visible = false;
         }
@@ -316,7 +434,7 @@ let latestKeypoints = null;
 let latestAngles = {};
 let capturedFrameA = null;  // { keypoints, angles, time }
 let capturedFrameB = null;
-let selectedSide = 'left';  // 'left' or 'right'
+let selectedSide = 'left';  // 'left', 'right', or 'both'
 let comparisonActive = false;
 
 
@@ -554,6 +672,7 @@ function initLiveView() {
         modeCompare?.classList.remove('active');
         if (panelLive) panelLive.style.display = '';
         if (panelCompare) panelCompare.style.display = 'none';
+        if (!comparisonActive) swapToLive3D();
     });
 
     modeCompare?.addEventListener('click', () => {
@@ -561,21 +680,38 @@ function initLiveView() {
         modeLive?.classList.remove('active');
         if (panelLive) panelLive.style.display = 'none';
         if (panelCompare) panelCompare.style.display = '';
+        if (comparisonActive) swapToCompare3D();
     });
 
-    // Side selector
+    // Side selector (global — affects both live and compare views)
     const btnLeft = document.getElementById('btn-side-left');
     const btnRight = document.getElementById('btn-side-right');
-    btnLeft?.addEventListener('click', () => {
-        selectedSide = 'left';
-        btnLeft.classList.add('active');
-        btnRight?.classList.remove('active');
-    });
-    btnRight?.addEventListener('click', () => {
-        selectedSide = 'right';
-        btnRight.classList.add('active');
-        btnLeft?.classList.remove('active');
-    });
+    const btnBoth = document.getElementById('btn-side-both');
+    const sideButtons = [btnLeft, btnRight, btnBoth];
+
+    function setSide(side) {
+        selectedSide = side;
+        sideButtons.forEach(b => b?.classList.remove('active'));
+        if (side === 'left') btnLeft?.classList.add('active');
+        else if (side === 'right') btnRight?.classList.add('active');
+        else btnBoth?.classList.add('active');
+
+        // Update video overlay indicator
+        const indicator = document.getElementById('side-indicator');
+        if (indicator) {
+            if (side === 'left') {
+                indicator.innerHTML = '<span style="color:#4ade80">●</span> LEFT';
+            } else if (side === 'right') {
+                indicator.innerHTML = '<span style="color:#f87171">●</span> RIGHT';
+            } else {
+                indicator.innerHTML = '<span style="color:#38bdf8">●</span> BOTH';
+            }
+        }
+    }
+
+    btnLeft?.addEventListener('click', () => setSide('left'));
+    btnRight?.addEventListener('click', () => setSide('right'));
+    btnBoth?.addEventListener('click', () => setSide('both'));
 
     // Capture A
     document.getElementById('btn-capture-a')?.addEventListener('click', () => {
@@ -610,7 +746,9 @@ function initLiveView() {
         }
         comparisonActive = true;
         showComparison(capturedFrameA, capturedFrameB, selectedSide);
-        if (skeleton3d) updateSkeleton3DComparison(capturedFrameA.keypoints, capturedFrameB.keypoints);
+        // Swap to dedicated comparison 3D view
+        swapToCompare3D();
+        updateCompare3D(capturedFrameA.keypoints, capturedFrameB.keypoints);
         document.getElementById('legend-a').style.display = '';
         document.getElementById('legend-b').style.display = '';
         document.getElementById('legend-arrow').style.display = '';
@@ -623,18 +761,41 @@ function initLiveView() {
         capturedFrameB = null;
         comparisonActive = false;
         document.getElementById('compare-result').innerHTML = '';
-        document.getElementById('compare-status').innerHTML = 'Select side → Capture A → Move → Capture B → Compare';
+        document.getElementById('compare-status').innerHTML = 'Capture A (resting) → Move arm → Capture B (max ROM) → Compare';
         document.getElementById('legend-a').style.display = 'none';
         document.getElementById('legend-b').style.display = 'none';
         document.getElementById('legend-arrow').style.display = 'none';
+        // Swap back to live3D view
+        swapToLive3D();
         if (skeleton3d) {
             skeleton3d.skeletonGroup.children.filter(c => c.userData?.comp).forEach(c => skeleton3d.skeletonGroup.remove(c));
         }
         showToast('Reset complete');
     });
 
+    // Keyboard shortcuts for clinical workflow
+    document.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+        if (e.key === 'a' || e.key === 'A') {
+            document.getElementById('btn-capture-a')?.click();
+        } else if (e.key === 'b' || e.key === 'B') {
+            document.getElementById('btn-capture-b')?.click();
+        } else if (e.key === 'c' || e.key === 'C') {
+            document.getElementById('btn-compare')?.click();
+        } else if (e.key === 'r' || e.key === 'R') {
+            document.getElementById('btn-reset')?.click();
+        } else if (e.key === '1') {
+            setSide('left');
+        } else if (e.key === '2') {
+            setSide('right');
+        } else if (e.key === '3') {
+            setSide('both');
+        }
+    });
+
     // Init 3D skeleton
     initSkeleton3D();
+    initCompare3D();
 
     // ROM angles chart
     realtimeAngleChart = ChartUtils.createRealtimeChart('angle-chart', {
@@ -711,27 +872,44 @@ function showComparison(a, b, side) {
     const fa = flatten(a);
     const fb = flatten(b);
 
+    // ROM severity classification for clinical context
+    const romSeverity = (diff) => {
+        const abs = Math.abs(diff);
+        if (abs > 60) return { label: 'Significant', color: 'var(--accent-red)' };
+        if (abs > 30) return { label: 'Moderate', color: 'var(--accent-orange)' };
+        if (abs > 10) return { label: 'Mild', color: 'var(--accent)' };
+        return { label: 'Normal', color: 'var(--accent-green)' };
+    };
+
     let html = `<div style="font-size:0.75rem;margin-bottom:0.5rem">`;
     html += `<strong>${side.toUpperCase()} ARM</strong> — A: ${a.time} vs B: ${b.time}</div>`;
     html += `<div style="display:grid;grid-template-columns:1fr auto 1fr;gap:2px;font-size:0.8rem">`;
     html += `<div style="font-weight:600;color:var(--accent)">A (Rest)</div>`;
-    html += `<div style="font-weight:600">Diff</div>`;
+    html += `<div style="font-weight:600">ROM Δ</div>`;
     html += `<div style="font-weight:600;color:var(--accent-orange)">B (Max)</div>`;
 
     for (const mv of MOVEMENTS) {
         const valA = fa[`${side}_${mv}`] ?? 0;
         const valB = fb[`${side}_${mv}`] ?? 0;
         const diff = valB - valA;
-        const color = Math.abs(diff) > 30 ? 'var(--accent-red)' :
-                      Math.abs(diff) > 10 ? 'var(--accent-orange)' :
-                      'var(--accent-green)';
+        const sev = romSeverity(diff);
 
+        const label = mv.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
         html += `<div>${valA.toFixed(1)}°</div>`;
-        html += `<div style="color:${color};font-weight:600">${diff > 0 ? '+' : ''}${diff.toFixed(1)}°</div>`;
+        html += `<div style="color:${sev.color};font-weight:600" title="${sev.label}">${diff > 0 ? '+' : ''}${diff.toFixed(1)}°</div>`;
         html += `<div>${valB.toFixed(1)}°</div>`;
     }
 
     html += `</div>`;
+
+    // ROM severity legend
+    html += `<div style="display:flex;gap:0.75rem;margin-top:0.5rem;font-size:0.65rem;color:var(--text-secondary)">`;
+    html += `<span><span style="color:var(--accent-green)">●</span> Normal (&lt;10°)</span>`;
+    html += `<span><span style="color:var(--accent)">●</span> Mild (10-30°)</span>`;
+    html += `<span><span style="color:var(--accent-orange)">●</span> Moderate (30-60°)</span>`;
+    html += `<span><span style="color:var(--accent-red)">●</span> Significant (&gt;60°)</span>`;
+    html += `</div>`;
+
     document.getElementById('compare-result').innerHTML = html;
 }
 
@@ -750,15 +928,21 @@ function updateLiveAngles(data) {
         }
     }
 
-    // Update text displays
+    // Update text displays — emphasize selected side
     for (const movement of MOVEMENTS) {
         const left = flat[`left_${movement}`] ?? flat[`left_${movement.replace('_', '_')}`];
         const right = flat[`right_${movement}`] ?? flat[`right_${movement.replace('_', '_')}`];
 
         const leftEl = document.getElementById(`angle-${movement}-left`);
         const rightEl = document.getElementById(`angle-${movement}-right`);
-        if (leftEl && left !== undefined) leftEl.textContent = left.toFixed(1) + '°';
-        if (rightEl && right !== undefined) rightEl.textContent = right.toFixed(1) + '°';
+        if (leftEl && left !== undefined) {
+            leftEl.textContent = left.toFixed(1) + '°';
+            leftEl.style.opacity = (selectedSide === 'both' || selectedSide === 'left') ? '1' : '0.4';
+        }
+        if (rightEl && right !== undefined) {
+            rightEl.textContent = right.toFixed(1) + '°';
+            rightEl.style.opacity = (selectedSide === 'both' || selectedSide === 'right') ? '1' : '0.4';
+        }
     }
 
     // Update chart — use selected movement

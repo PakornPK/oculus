@@ -309,6 +309,13 @@ tr:hover td {
     background: var(--border);
 }
 
+.btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg-primary);
+    font-weight: 600;
+}
+
 .btn-primary {
     background: var(--accent);
     border-color: var(--accent);
@@ -456,4 +463,69 @@ tr:hover td {
     nav .nav-links {
         gap: 0;
     }
+}
+
+/* Clinical UX: Keyboard shortcut hints */
+kbd {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-size: 0.7rem;
+    font-family: inherit;
+    color: var(--text-secondary);
+}
+
+/* Clinical UX: ROM severity legend */
+.rom-severity {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+}
+
+.rom-severity .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+/* Clinical UX: Selected side indicator */
+.side-indicator {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    background: rgba(0, 0, 0, 0.7);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    z-index: 5;
+}
+
+/* Clinical UX: Capture button states */
+.btn-captured {
+    border-color: var(--accent-green) !important;
+    box-shadow: inset 0 0 0 1px var(--accent-green);
+}
+
+/* Clinical UX: Comparison result improvements */
+#compare-result {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+#compare-result::-webkit-scrollbar {
+    width: 4px;
+}
+
+#compare-result::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+}
+
+#compare-result::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 2px;
 }
