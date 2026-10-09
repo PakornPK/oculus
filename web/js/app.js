@@ -125,6 +125,12 @@ function initSkeleton3D() {
     });
     renderer.setSize(width, height);
 
+    // OrbitControls for rotation
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.target.set(0, 1, 0);
+
     // Grid
     const grid = new THREE.GridHelper(4, 20, 0x334155, 0x1e293b);
     scene.add(grid);
@@ -181,11 +187,12 @@ function initSkeleton3D() {
     // Animation loop
     function animate() {
         requestAnimationFrame(animate);
+        controls.update();
         renderer.render(scene, camera);
     }
     animate();
 
-    skeleton3d = { scene, camera, renderer, spheres, lines, skeletonGroup };
+    skeleton3d = { scene, camera, renderer, spheres, lines, skeletonGroup, controls };
 }
 
 function updateSkeleton3D(keypoints) {
@@ -228,6 +235,49 @@ function updateSkeleton3D(keypoints) {
     }
 }
 
+// Skeleton overlay state
+let latestKeypoints = null;
+
+const SKELETON_BONES = [
+    [0,1],[0,2],[1,3],[2,4],
+    [5,6],
+    [5,7],[7,9],
+    [6,8],[8,10],
+    [5,11],[6,12],
+    [11,12],
+    [11,13],[13,15],
+    [12,14],[14,16]
+];
+
+function drawSkeletonOverlay(ctx, keypoints, w, h) {
+    if (!keypoints || keypoints.length < 17) return;
+
+    // Draw bones
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#fbbf24';
+    for (const [i, j] of SKELETON_BONES) {
+        const a = keypoints[i], b = keypoints[j];
+        if (a.confidence > 0.3 && b.confidence > 0.3) {
+            ctx.beginPath();
+            ctx.moveTo(a.x * w / 640, a.y * h / 360);
+            ctx.lineTo(b.x * w / 640, b.y * h / 360);
+            ctx.stroke();
+        }
+    }
+
+    // Draw keypoints
+    for (let i = 0; i < keypoints.length; i++) {
+        const kp = keypoints[i];
+        if (kp.confidence > 0.3) {
+            ctx.beginPath();
+            ctx.arc(kp.x * w / 640, kp.y * h / 360, 4, 0, Math.PI * 2);
+            ctx.fillStyle = (i === 5 || i === 7 || i === 9 || i === 11 || i === 13 || i === 15)
+                ? '#4ade80' : '#f87171';
+            ctx.fill();
+        }
+    }
+}
+
 function initLiveView() {
     const canvas = document.getElementById('video-canvas');
     const placeholder = document.getElementById('video-placeholder');
@@ -238,6 +288,8 @@ function initLiveView() {
         if (canvas.width !== frameImg.width) canvas.width = frameImg.width;
         if (canvas.height !== frameImg.height) canvas.height = frameImg.height;
         ctx.drawImage(frameImg, 0, 0);
+        // Draw skeleton overlay on video
+        drawSkeletonOverlay(ctx, latestKeypoints, canvas.width, canvas.height);
         if (placeholder) placeholder.style.display = 'none';
     };
 
@@ -268,12 +320,18 @@ function initLiveView() {
         }
     });
     ws.on('keypoints', (data) => {
-        if (data.keypoints) updateSkeleton3D(data.keypoints);
+        if (data.keypoints) {
+            latestKeypoints = data.keypoints;
+            updateSkeleton3D(data.keypoints);
+        }
     });
     ws.on('data', (data) => {
         if (data.angles) updateLiveAngles(data);
         if (data.frame) frameImg.src = 'data:image/jpeg;base64,' + data.frame;
-        if (data.keypoints) updateSkeleton3D(data.keypoints);
+        if (data.keypoints) {
+            latestKeypoints = data.keypoints;
+            updateSkeleton3D(data.keypoints);
+        }
     });
     ws.connect();
 }
