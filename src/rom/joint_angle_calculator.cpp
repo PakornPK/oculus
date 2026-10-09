@@ -65,6 +65,16 @@ float JointAngleCalculator::horizontal_offset(const Keypoint& a, const Keypoint&
     return a.x - b.x;
 }
 
+float JointAngleCalculator::smooth_angle(float raw_angle, int window) {
+    angle_buffer_.push_back(raw_angle);
+    if (static_cast<int>(angle_buffer_.size()) > window) {
+        angle_buffer_.pop_front();
+    }
+    float sum = 0;
+    for (float v : angle_buffer_) sum += v;
+    return sum / static_cast<float>(angle_buffer_.size());
+}
+
 float JointAngleCalculator::calculate_angle(
     const Pose& pose, MovementType movement, Side side) {
 

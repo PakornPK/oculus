@@ -99,9 +99,20 @@ std::vector<float> RTMPosePreprocessor::process_crop(
 
     cv::Mat cropped = rgb(cv::Rect(crop_x, crop_y, crop_w, crop_h));
 
+    // CLAHE histogram equalization for better contrast
+    cv::Mat lab;
+    cv::cvtColor(cropped, lab, cv::COLOR_RGB2Lab);
+    std::vector<cv::Mat> lab_channels;
+    cv::split(lab, lab_channels);
+    cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(2.0, cv::Size(8, 8));
+    clahe->apply(lab_channels[0], lab_channels[0]);
+    cv::merge(lab_channels, lab);
+    cv::Mat enhanced;
+    cv::cvtColor(lab, enhanced, cv::COLOR_Lab2RGB);
+
     // Resize to model input
     cv::Mat resized;
-    cv::resize(cropped, resized, cv::Size(INPUT_WIDTH, INPUT_HEIGHT),
+    cv::resize(enhanced, resized, cv::Size(INPUT_WIDTH, INPUT_HEIGHT),
                0, 0, cv::INTER_LINEAR);
 
     // Normalize with ImageNet mean/std and convert HWC -> CHW

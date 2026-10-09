@@ -2,6 +2,8 @@
 
 #include "oculus/core/pose.hpp"
 #include <cmath>
+#include <deque>
+#include <algorithm>
 
 namespace oculus {
 
@@ -39,7 +41,11 @@ public:
     static float vertical_distance(const Keypoint& a, const Keypoint& b);
     static float horizontal_offset(const Keypoint& a, const Keypoint& b);
 
+    float smooth_angle(float raw_angle, int window = 5);
+
 private:
+    std::deque<float> angle_buffer_;
+    int smooth_window_ = 5;
     static float dot(const Keypoint& a, const Keypoint& b);
     static float magnitude(const Keypoint& v);
     static Keypoint subtract(const Keypoint& a, const Keypoint& b);
