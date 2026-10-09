@@ -202,16 +202,26 @@ function updateSkeleton3D(keypoints) {
     const scale = 0.003; // pixel to 3D unit
     const centerY = 1.0;
 
-    // Update sphere positions (convert 2D to 3D)
+    // Update sphere positions (convert 2D to 3D with depth estimation)
+    const refX = keypoints[6]?.x || 320; // right shoulder as reference
+    const refY = keypoints[6]?.y || 180;
+
     for (let i = 0; i < 17; i++) {
         const kp = keypoints[i];
         if (kp.confidence > 0.3) {
-            // Map 2D (x, y) to 3D (x, y, z)
-            // x: left-right, y: up-down (inverted), z: depth (estimate)
+            // Estimate depth from body position
+            // Arms extended = further from body center = more depth
+            let z = 0;
+            if (i === 7 || i === 8) { // elbows
+                z = Math.abs(kp.x - refX) * scale * 0.3;
+            } else if (i === 9 || i === 10) { // wrists
+                z = Math.abs(kp.x - refX) * scale * 0.5;
+            }
+
             spheres[i].position.set(
                 (kp.x - 320) * scale,
                 centerY - (kp.y - 180) * scale,
-                0
+                z
             );
             spheres[i].visible = true;
         } else {

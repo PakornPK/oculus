@@ -183,6 +183,30 @@ int run_demo(const std::string& video_path, int port,
                 pose.keypoints[4] = {380, 180, 0.8f};
             }
 
+            // Scale keypoints from model space (192x256) to video frame
+            // The preprocessor crops to model aspect ratio then resizes
+            float model_aspect = 192.0f / 256.0f;
+            float frame_aspect = static_cast<float>(frame.width) / frame.height;
+
+            int crop_x = 0, crop_y = 0, crop_w = frame.width, crop_h = frame.height;
+            if (frame_aspect > model_aspect) {
+                crop_h = frame.height;
+                crop_w = static_cast<int>(crop_h * model_aspect);
+                crop_x = (frame.width - crop_w) / 2;
+            } else {
+                crop_w = frame.width;
+                crop_h = static_cast<int>(crop_w / model_aspect);
+                crop_y = (frame.height - crop_h) / 2;
+            }
+
+            float sx = static_cast<float>(crop_w) / 192.0f;
+            float sy = static_cast<float>(crop_h) / 256.0f;
+
+            for (auto& kp : pose.keypoints) {
+                kp.x = kp.x * sx + crop_x;
+                kp.y = kp.y * sy + crop_y;
+            }
+
             rom_analyzer.update(pose);
 
             cv::Mat cv_frame(frame.height, frame.width, CV_8UC3, frame.data.data());
