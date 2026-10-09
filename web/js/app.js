@@ -158,16 +158,13 @@ function initSkeleton3D() {
         spheres.push(sphere);
     }
 
-    // Bone connections with per-side coloring
+    // Bone connections - shoulder ROM relevant only
     const bones = [
-        [0,1],[0,2],[1,3],[2,4],
-        [5,6],
-        [5,7],[7,9],
-        [6,8],[8,10],
-        [5,11],[6,12],
-        [11,12],
-        [11,13],[13,15],
-        [12,14],[14,16]
+        [5,6],      // shoulders
+        [5,7],[7,9],    // L arm
+        [6,8],[8,10],   // R arm
+        [5,11],[6,12],  // torso
+        [11,12],        // hips
     ];
 
     const lineMatLeft = new THREE.LineBasicMaterial({ color: 0x4ade80 });
@@ -241,8 +238,8 @@ function initCompare3D() {
     const arcMat = new THREE.LineBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.6 });
 
     const bones = [
-        [0,1],[0,2],[1,3],[2,4],[5,6],[5,7],[7,9],[6,8],[8,10],
-        [5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16]
+        [5,6],[5,7],[7,9],[6,8],[8,10],
+        [5,11],[6,12],[11,12]
     ];
 
     function animate() {
@@ -535,15 +532,16 @@ function sendCropUpdate() {
     }).catch(() => {});
 }
 
+// Shoulder ROM skeleton - only arms, shoulders, torso
 const SKELETON_BONES = [
-    [0,1],[0,2],[1,3],[2,4],
-    [5,6],
-    [5,7],[7,9],
-    [6,8],[8,10],
-    [5,11],[6,12],
-    [11,12],
-    [11,13],[13,15],
-    [12,14],[14,16]
+    [5,6],      // shoulders
+    [5,7],      // L upper arm
+    [7,9],      // L forearm
+    [6,8],      // R upper arm
+    [8,10],     // R forearm
+    [5,11],     // L torso
+    [6,12],     // R torso
+    [11,12],    // hips
 ];
 
 function drawCropBoundary(ctx, w, h) {
@@ -574,12 +572,17 @@ function drawCropBoundary(ctx, w, h) {
 }
 
 // Keypoint indices by side (COCO-17 format)
-const LEFT_INDICES = new Set([1, 3, 5, 7, 9, 11, 13, 15]);
-const RIGHT_INDICES = new Set([2, 4, 6, 8, 10, 12, 14, 16]);
-const CENTER_INDICES = new Set([0]);
+// Shoulder ROM relevant keypoints only
+// 5=L-shoulder, 6=R-shoulder, 7=L-elbow, 8=R-elbow, 9=L-wrist, 10=R-wrist
+// 11=L-hip(torso), 12=R-hip(torso)
+const LEFT_INDICES = new Set([5, 7, 9, 11]);
+const RIGHT_INDICES = new Set([6, 8, 10, 12]);
+const CENTER_INDICES = new Set([]);
+const SHOULDER_ROM_INDICES = new Set([5, 6, 7, 8, 9, 10, 11, 12]);
 
 function isSideVisible(idx) {
-    if (CENTER_INDICES.has(idx)) return true;
+    // Only show shoulder ROM relevant keypoints
+    if (!SHOULDER_ROM_INDICES.has(idx)) return false;
     if (selectedSide === 'both') return true;
     if (selectedSide === 'left') return LEFT_INDICES.has(idx);
     return RIGHT_INDICES.has(idx);
