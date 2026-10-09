@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oculus — ROM Comparison</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+    <nav>
+        <a class="logo" href="index.html">Oculus</a>
+        <div class="nav-links">
+            <a href="index.html">Dashboard</a>
+            <a href="live.html">Live View</a>
+            <a href="compare.html" class="active">Compare</a>
+            <a href="analysis.html">Analysis</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="page-header">
+            <h1>ROM Comparison</h1>
+            <p>Compare resting vs max ROM — select side, capture, analyze</p>
+        </div>
+
+        <!-- Controls -->
+        <div class="card" style="margin-bottom:1.5rem">
+            <div style="display:flex;flex-wrap:wrap;gap:1rem;align-items:center">
+                <!-- Side selector -->
+                <div style="display:flex;gap:0.5rem">
+                    <button id="btn-left" class="btn active" style="padding:8px 16px">Left Arm</button>
+                    <button id="btn-right" class="btn" style="padding:8px 16px">Right Arm</button>
+                </div>
+
+                <div style="flex:1"></div>
+
+                <!-- Capture -->
+                <button id="btn-capture-a" class="btn" style="padding:8px 16px;background:#1e293b">
+                    <strong>A: Resting</strong><br><span style="font-size:0.7rem">Baseline position</span>
+                </button>
+                <button id="btn-capture-b" class="btn" style="padding:8px 16px;background:#1e293b">
+                    <strong>B: Max ROM</strong><br><span style="font-size:0.7rem">Peak movement</span>
+                </button>
+
+                <div style="flex:1"></div>
+
+                <button id="btn-compare" class="btn" style="padding:8px 16px;background:var(--accent);color:#000">Compare</button>
+                <button id="btn-reset" class="btn" style="padding:8px 16px;background:var(--accent-red)">Reset</button>
+            </div>
+            <div id="status" style="margin-top:0.75rem;font-size:0.85rem;color:var(--text-secondary)">
+                Step 1: Select left or right arm
+            </div>
+        </div>
+
+        <!-- Main content: 3D + Table -->
+        <div class="grid grid-2" style="gap:1.5rem">
+            <!-- 3D Comparison View -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>3D Comparison</h2>
+                    <div style="display:flex;gap:0.75rem;font-size:0.75rem">
+                        <span><span style="color:#4ade80">●</span> Frame A (Resting)</span>
+                        <span><span style="color:#f87171">●</span> Frame B (Max ROM)</span>
+                        <span><span style="color:#fbbf24">→</span> Movement</span>
+                    </div>
+                </div>
+                <div id="compare3d-container" style="width:100%;height:500px;background:#0f172a;border-radius:8px">
+                    <canvas id="compare3d-canvas" style="width:100%;height:100%"></canvas>
+                </div>
+            </div>
+
+            <!-- Results Table -->
+            <div style="display:flex;flex-direction:column;gap:1.5rem">
+                <div class="card" style="flex:1">
+                    <div class="card-header">
+                        <h2>ROM Results</h2>
+                        <span id="result-side" class="badge">LEFT</span>
+                    </div>
+                    <div id="results-table">
+                        <table style="width:100%;border-collapse:collapse;font-size:0.85rem">
+                            <thead>
+                                <tr style="border-bottom:1px solid var(--border)">
+                                    <th style="text-align:left;padding:8px 4px;color:var(--text-secondary)">Movement</th>
+                                    <th style="text-align:right;padding:8px 4px;color:var(--accent)">A (Rest)</th>
+                                    <th style="text-align:right;padding:8px 4px;color:var(--text-secondary)">Diff</th>
+                                    <th style="text-align:right;padding:8px 4px;color:var(--accent-orange)">B (Max)</th>
+                                    <th style="text-align:right;padding:8px 4px;color:var(--text-secondary)">ROM</th>
+                                </tr>
+                            </thead>
+                            <tbody id="results-body">
+                                <tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-secondary)">Capture Frame A and B to see results</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Summary -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Summary</h2>
+                    </div>
+                    <div id="summary" style="font-size:0.85rem;color:var(--text-secondary)">
+                        No comparison data yet. Capture two frames to analyze.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    const MOVEMENTS = [
+        { key: 'abduction', label: 'Abduction' },
+        { key: 'forward_flexion', label: 'Forward Flexion' },
+        { key: 'extension', label: 'Extension' },
+        { key: 'external_rotation', label: 'External Rotation' },
+        { key: 'internal_rotation', label: 'Internal Rotation' },
+        { key: 'adduction', label: 'Adduction' },
+        { key: 'horizontal_adduction', label: 'Horizontal Adduction' },
+        { key: 'scapular_protraction', label: 'Scapular Protraction' },
+        { key: 'scapular_retraction', label: 'Scapular Retraction' },
+        { key: 'shoulder_elevation', label: 'Shoulder Elevation' },
+        { key: 'shoulder_depression', label: 'Shoulder Depression' },
+    ];
+
+    let selectedSide = 'left';
+    let frameA = null;
+    let frameB = null;
+    let scene3d = null;
+
+    // ── 3D Setup ──
+    function init3D() {
+        const container = document.getElementById('compare3d-container');
+        const canvas = document.getElementById('compare3d-canvas');
+        const w = container.clientWidth, h = container.clientHeight;
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0f172a);
+
+        const camera = new THREE.PerspectiveCamera(60, w / h, 0.1, 1000);
+        camera.position.set(0, 1.2, 2.5);
+        camera.lookAt(0, 1, 0);
+
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+        renderer.setSize(w, h);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.target.set(0, 1, 0);
+
+        const grid = new THREE.GridHelper(3, 15, 0x475569, 0x1e293b);
+        scene.add(grid);
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        scene3d = { scene, camera, renderer, controls };
+    }
+
+    function draw3DComparison(kpA, kpB, side) {
+        if (!scene3d) return;
+        const { scene } = scene3d;
+
+        // Clear old comparison objects
+        scene.children.filter(c => c.userData?.comp).forEach(c => scene.remove(c));
+
+        if (!kpA || !kpB) return;
+
+        const scale = 0.003, centerY = 1.0;
+        const geo = new THREE.SphereGeometry(0.015, 12, 12);
+        const matA = new THREE.MeshBasicMaterial({ color: 0x4ade80, transparent: true, opacity: 0.8 });
+        const matB = new THREE.MeshBasicMaterial({ color: 0xf87171, transparent: true, opacity: 0.8 });
+        const lineMat = new THREE.LineBasicMaterial({ color: 0xfbbf24 });
+
+        const to3d = (kp) => new THREE.Vector3((kp.x - 320) * scale, centerY - (kp.y - 180) * scale, 0);
+
+        // Frame A skeleton (green)
+        const bones = [[0,1],[0,2],[1,3],[2,4],[5,6],[5,7],[7,9],[6,8],[8,10],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16]];
+        for (const [i, j] of bones) {
+            if (kpA[i]?.confidence > 0.3 && kpA[j]?.confidence > 0.3) {
+                const pts = [to3d(kpA[i]), to3d(kpA[j])];
+                const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0x4ade80, transparent: true, opacity: 0.5 }));
+                line.userData = { comp: true };
+                scene.add(line);
+            }
+        }
+
+        // Frame B skeleton (red)
+        for (const [i, j] of bones) {
+            if (kpB[i]?.confidence > 0.3 && kpB[j]?.confidence > 0.3) {
+                const pts = [to3d(kpB[i]), to3d(kpB[j])];
+                const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0xf87171, transparent: true, opacity: 0.5 }));
+                line.userData = { comp: true };
+                scene.add(line);
+            }
+        }
+
+        // Keypoints
+        for (let i = 0; i < 17; i++) {
+            if (kpA[i]?.confidence > 0.3) {
+                const s = new THREE.Mesh(geo, matA);
+                s.position.copy(to3d(kpA[i]));
+                s.userData = { comp: true };
+                scene.add(s);
+            }
+            if (kpB[i]?.confidence > 0.3) {
+                const s = new THREE.Mesh(geo, matB);
+                s.position.copy(to3d(kpB[i]));
+                s.userData = { comp: true };
+                scene.add(s);
+            }
+        }
+
+        // Movement arrows (selected side only)
+        const indices = side === 'left' ? [5, 7, 9, 11, 13, 15] : [6, 8, 10, 12, 14, 16];
+        for (const i of indices) {
+            if (kpA[i]?.confidence > 0.3 && kpB[i]?.confidence > 0.3) {
+                const pts = [to3d(kpA[i]), to3d(kpB[i])];
+                const arrow = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lineMat);
+                arrow.userData = { comp: true };
+                scene.add(arrow);
+            }
+        }
+    }
+
+    // ── Flatten angles ──
+    function flattenAngles(data) {
+        const flat = {};
+        const angles = data?.angles || data || {};
+        for (const [key, val] of Object.entries(angles)) {
+            if (typeof val === 'object' && val !== null) {
+                for (const [sub, v] of Object.entries(val)) {
+                    flat[`${key}_${sub}`] = v;
+                }
+            }
+        }
+        return flat;
+    }
+
+    // ── Show results ──
+    function showResults() {
+        if (!frameA || !frameB) return;
+
+        const fa = flattenAngles(frameA.angles);
+        const fb = flattenAngles(frameB.angles);
+        const side = selectedSide;
+
+        document.getElementById('result-side').textContent = side.toUpperCase();
+
+        let html = '';
+        let totalROM = 0;
+        let count = 0;
+
+        for (const mv of MOVEMENTS) {
+            const a = fa[`${side}_${mv.key}`] ?? 0;
+            const b = fb[`${side}_${mv.key}`] ?? 0;
+            const diff = b - a;
+            const rom = Math.abs(diff);
+            totalROM += rom;
+            count++;
+
+            const color = rom > 30 ? '#f87171' : rom > 10 ? '#fb923c' : '#4ade80';
+
+            html += `<tr style="border-bottom:1px solid var(--border)">`;
+            html += `<td style="padding:6px 4px">${mv.label}</td>`;
+            html += `<td style="text-align:right;padding:6px 4px;color:var(--accent)">${a.toFixed(1)}°</td>`;
+            html += `<td style="text-align:right;padding:6px 4px;color:${color};font-weight:600">${diff > 0 ? '+' : ''}${diff.toFixed(1)}°</td>`;
+            html += `<td style="text-align:right;padding:6px 4px;color:var(--accent-orange)">${b.toFixed(1)}°</td>`;
+            html += `<td style="text-align:right;padding:6px 4px;font-weight:600">${rom.toFixed(1)}°</td>`;
+            html += `</tr>`;
+        }
+
+        document.getElementById('results-body').innerHTML = html;
+
+        // Summary
+        const avgROM = totalROM / count;
+        document.getElementById('summary').innerHTML = `
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;text-align:center">
+                <div>
+                    <div style="font-size:1.5rem;font-weight:700;color:var(--accent)">${avgROM.toFixed(0)}°</div>
+                    <div style="font-size:0.75rem;color:var(--text-secondary)">Avg ROM</div>
+                </div>
+                <div>
+                    <div style="font-size:1.5rem;font-weight:700;color:var(--accent-orange)">${frameA.time}</div>
+                    <div style="font-size:0.75rem;color:var(--text-secondary)">Frame A</div>
+                </div>
+                <div>
+                    <div style="font-size:1.5rem;font-weight:700;color:var(--accent-red)">${frameB.time}</div>
+                    <div style="font-size:0.75rem;color:var(--text-secondary)">Frame B</div>
+                </div>
+            </div>
+        `;
+
+        // 3D comparison
+        draw3DComparison(frameA.keypoints, frameB.keypoints, side);
+    }
+
+    // ── SSE connection ──
+    let latestKeypoints = null;
+    let latestAngles = null;
+
+    function connectSSE() {
+        const es = new EventSource('/ws/rom');
+        es.onmessage = (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                if (data.type === 'keypoints') latestKeypoints = data.keypoints;
+                if (data.type === 'rom_angles') latestAngles = data;
+            } catch {}
+        };
+        es.onerror = () => setTimeout(connectSSE, 3000);
+    }
+
+    // ── Init ──
+    document.addEventListener('DOMContentLoaded', () => {
+        init3D();
+        connectSSE();
+
+        // Side selector
+        document.getElementById('btn-left').onclick = () => {
+            selectedSide = 'left';
+            document.getElementById('btn-left').classList.add('active');
+            document.getElementById('btn-right').classList.remove('active');
+            document.getElementById('status').innerHTML = 'Side: <strong>LEFT</strong> — Capture A (resting position)';
+            if (frameA && frameB) showResults();
+        };
+        document.getElementById('btn-right').onclick = () => {
+            selectedSide = 'right';
+            document.getElementById('btn-right').classList.add('active');
+            document.getElementById('btn-left').classList.remove('active');
+            document.getElementById('status').innerHTML = 'Side: <strong>RIGHT</strong> — Capture A (resting position)';
+            if (frameA && frameB) showResults();
+        };
+
+        // Capture A
+        document.getElementById('btn-capture-a').onclick = () => {
+            frameA = {
+                keypoints: latestKeypoints ? JSON.parse(JSON.stringify(latestKeypoints)) : null,
+                angles: latestAngles ? JSON.parse(JSON.stringify(latestAngles)) : null,
+                time: new Date().toLocaleTimeString()
+            };
+            document.getElementById('status').innerHTML =
+                `<span style="color:#4ade80">✓ Frame A captured (${frameA.time})</span> — Move arm to max ROM, then capture B`;
+        };
+
+        // Capture B
+        document.getElementById('btn-capture-b').onclick = () => {
+            frameB = {
+                keypoints: latestKeypoints ? JSON.parse(JSON.stringify(latestKeypoints)) : null,
+                angles: latestAngles ? JSON.parse(JSON.stringify(latestAngles)) : null,
+                time: new Date().toLocaleTimeString()
+            };
+            document.getElementById('status').innerHTML =
+                `<span style="color:#4ade80">✓ A (${frameA?.time || '—'}) + B (${frameB.time}) captured</span> — Click Compare`;
+        };
+
+        // Compare
+        document.getElementById('btn-compare').onclick = () => {
+            if (!frameA || !frameB) {
+                document.getElementById('status').innerHTML = '<span style="color:#f87171">Capture both frames first</span>';
+                return;
+            }
+            showResults();
+            document.getElementById('status').innerHTML = '<span style="color:#4ade80">Comparison complete</span>';
+        };
+
+        // Reset
+        document.getElementById('btn-reset').onclick = () => {
+            frameA = null;
+            frameB = null;
+            document.getElementById('results-body').innerHTML =
+                '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-secondary)">Capture Frame A and B to see results</td></tr>';
+            document.getElementById('summary').innerHTML = 'No comparison data yet.';
+            document.getElementById('status').innerHTML = 'Step 1: Select left or right arm';
+            // Clear 3D
+            if (scene3d) {
+                scene3d.scene.children.filter(c => c.userData?.comp).forEach(c => scene3d.scene.remove(c));
+            }
+        };
+    });
+    </script>
+</body>
+</html>
