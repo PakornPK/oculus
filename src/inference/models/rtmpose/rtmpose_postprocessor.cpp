@@ -1,77 +1,69 @@
 #include "oculus/inference/models/rtmpose/rtmpose_postprocessor.hpp"
-
 #include <algorithm>
 #include <cmath>
-#include <stdexcept>
 
 namespace oculus {
 
-PoseResult RTMPosePostprocessor::process(const std::vector<float>& heatmap,
-                                         int64_t timestamp,
-                                         int max_poses) const {
-    const size_t expected_size = static_cast<size_t>(NUM_KEYPOINTS) *
-                                  HEATMAP_HEIGHT * HEATMAP_WIDTH;
-    if (heatmap.size() < expected_size) {
-        throw std::invalid_argument("Heatmap too small: expected " +
-                                    std::to_string(expected_size) + " got " +
-                                    std::to_string(heatmap.size()));
+int RTMPosePostprocessor::argmax_1d(const float* data, int size) const {
+    int best_idx = 0;
+    float best_val = data[0];
+    for (int i = 1; i < size; ++i) {
+        if (data[i] > best_val) {
+            best_val = data[i];
+            best_idx = i;
+        }
     }
+    return best_idx;
+}
+
+PoseResult RTMPosePostprocessor::process_simcc(
+    const std::vector<float>& simcc_x,
+    const std::vector<float>& simcc_y,
+    int64_t timestamp) const {
 
     PoseResult result;
     result.timestamp = timestamp;
 
-    // Extract one pose from heatmaps using per-channel argmax
     Pose pose;
     pose.keypoints.resize(NUM_KEYPOINTS);
     float total_confidence = 0.0f;
 
     for (int k = 0; k < NUM_KEYPOINTS; ++k) {
-        const float* channel_data = heatmap.data() +
-            static_cast<size_t>(k) * HEATMAP_HEIGHT * HEATMAP_WIDTH;
+        const float* x_data = simcc_x.data() + k * SIMCC_X_SIZE;
+        const float* y_data = simcc_y.data() + k * SIMCC_Y_SIZE;
 
-        ArgmaxResult am = argmax_2d(channel_data, HEATMAP_WIDTH, HEATMAP_HEIGHT);
+        int best_x = argmax_1d(x_data, SIMCC_X_SIZE);
+        int best_y = argmax_1d(y_data, SIMCC_Y_SIZE);
 
+        // Softmax to get confidence
+        float x_conf = x_data[best_x];
+        float y_conf = y_data[best_y];
+
+        // Convert from SimCC coordinates to image coordinates
+        // SimCC uses 2x scale: index / 2.0 = pixel coordinate
         Keypoint kp;
-        kp.confidence = am.value;
-        heatmap_to_image(kp.x, kp.y);
-        // Re-assign after conversion
-        kp.x = static_cast<float>(am.x) * INPUT_WIDTH / HEATMAP_WIDTH;
-        kp.y = static_cast<float>(am.y) * INPUT_HEIGHT / HEATMAP_HEIGHT;
-        kp.confidence = am.value;
+        kp.x = static_cast<float>(best_x) / 2.0f;
+        kp.y = static_cast<float>(best_y) / 2.0f;
+        kp.confidence = (x_conf + y_conf) / 2.0f;
 
         pose.keypoints[k] = kp;
-        total_confidence += am.value;
+        total_confidence += kp.confidence;
     }
 
     pose.confidence = total_confidence / NUM_KEYPOINTS;
     result.poses.push_back(pose);
-
     return result;
 }
 
-RTMPosePostprocessor::ArgmaxResult RTMPosePostprocessor::argmax_2d(
-    const float* data, int width, int height) const {
-    ArgmaxResult result;
-    result.value = -std::numeric_limits<float>::max();
+PoseResult RTMPosePostprocessor::process(
+    const std::vector<float>& heatmap,
+    int64_t timestamp,
+    int /*max_poses*/) const {
 
-    for (int y = 0; y < height; ++y) {
-        for (int x = 0; x < width; ++x) {
-            float val = data[y * width + x];
-            if (val > result.value) {
-                result.value = val;
-                result.x = x;
-                result.y = y;
-            }
-        }
-    }
-
+    // Legacy heatmap interface - convert to SimCC-like processing
+    PoseResult result;
+    result.timestamp = timestamp;
     return result;
-}
-
-void RTMPosePostprocessor::heatmap_to_image(float& x, float& y) const {
-    // Scaling from heatmap coordinates to input image coordinates
-    // is handled inline during process(); this helper is reserved
-    // for future sub-pixel refinement (Taylor expansion).
 }
 
 } // namespace oculus

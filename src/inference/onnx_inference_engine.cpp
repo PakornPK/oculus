@@ -111,21 +111,26 @@ PoseResult OnnxInferenceEngine::infer(const Frame& frame) {
         input_names_cstr.data(), &input_ort_tensor, 1,
         output_names_cstr.data(), output_names_cstr.size());
 
-    // Extract output data
-    auto& output_tensor = output_tensors[0];
-    auto output_shape = output_tensor.GetTensorTypeAndShapeInfo().GetShape();
-    float* output_data = output_tensor.GetTensorMutableData<float>();
+    // RTMPose outputs: simcc_x [1,17,384], simcc_y [1,17,512]
+    auto& simcc_x_tensor = output_tensors[0];
+    auto& simcc_y_tensor = output_tensors[1];
 
-    size_t output_size = 1;
-    for (auto dim : output_shape) {
-        if (dim > 0) output_size *= static_cast<size_t>(dim);
-    }
+    float* simcc_x_data = simcc_x_tensor.GetTensorMutableData<float>();
+    float* simcc_y_data = simcc_y_tensor.GetTensorMutableData<float>();
 
-    std::vector<float> heatmap(output_data, output_data + output_size);
+    auto simcc_x_shape = simcc_x_tensor.GetTensorTypeAndShapeInfo().GetShape();
+    auto simcc_y_shape = simcc_y_tensor.GetTensorTypeAndShapeInfo().GetShape();
 
-    // Postprocess: extract keypoints from heatmaps
+    size_t simcc_x_size = 1, simcc_y_size = 1;
+    for (auto dim : simcc_x_shape) if (dim > 0) simcc_x_size *= static_cast<size_t>(dim);
+    for (auto dim : simcc_y_shape) if (dim > 0) simcc_y_size *= static_cast<size_t>(dim);
+
+    std::vector<float> simcc_x(simcc_x_data, simcc_x_data + simcc_x_size);
+    std::vector<float> simcc_y(simcc_y_data, simcc_y_data + simcc_y_size);
+
+    // Postprocess: extract keypoints from SimCC output
     RTMPosePostprocessor postprocessor;
-    return postprocessor.process(heatmap, frame.timestamp);
+    return postprocessor.process_simcc(simcc_x, simcc_y, frame.timestamp);
 }
 
 std::string OnnxInferenceEngine::backend_name() const {

@@ -4,6 +4,8 @@
 #include <string>
 #include <functional>
 #include <unordered_map>
+#include <vector>
+#include <cstdint>
 
 namespace oculus {
 
@@ -24,10 +26,10 @@ public:
     void stop();
     bool is_running() const;
 
-    // Push real-time data to connected SSE clients
     void update_angles(const std::unordered_map<std::string, float>& angles);
     void update_result(const ShoulderRomResult& result);
     void increment_frame_count();
+    void push_frame(const std::vector<uint8_t>& jpeg_data);
 
 private:
     struct Impl;

@@ -37,12 +37,11 @@
                     <span class="badge">LIVE</span>
                 </div>
                 <div class="video-container">
-                    <div class="placeholder">
+                    <canvas id="video-canvas" style="width:100%;height:100%;object-fit:contain"></canvas>
+                    <div id="video-placeholder" class="placeholder">
                         <p style="font-size:2rem;margin-bottom:0.5rem">📹</p>
-                        <p>Camera feed will appear here</p>
-                        <p style="font-size:0.8rem;margin-top:0.25rem">Connect a camera to start streaming</p>
+                        <p>Loading video stream...</p>
                     </div>
-                    <canvas id="pose-canvas"></canvas>
                 </div>
             </div>
 

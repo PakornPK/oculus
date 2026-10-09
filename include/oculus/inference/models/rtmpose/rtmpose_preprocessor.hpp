@@ -7,12 +7,12 @@ namespace oculus {
 
 class RTMPosePreprocessor {
 public:
-    static constexpr int INPUT_WIDTH = 256;
-    static constexpr int INPUT_HEIGHT = 192;
+    static constexpr int INPUT_WIDTH = 192;
+    static constexpr int INPUT_HEIGHT = 256;
     static constexpr int INPUT_CHANNELS = 3;
 
-    // Preprocess a Frame (640x480 RGB) into a normalized float tensor (1, 3, 192, 256).
-    // Resize to 256x192, normalize pixel values to [0,1], convert HWC -> CHW.
+    // Preprocess a Frame (640x480 RGB) into a normalized float tensor (1, 3, 256, 192).
+    // Resize to 192x256, normalize pixel values to [0,1], convert HWC -> CHW.
     std::vector<float> process(const Frame& frame) const;
 
     int input_width() const { return INPUT_WIDTH; }

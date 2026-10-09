@@ -34,6 +34,11 @@ struct WebServer::Impl {
     std::mutex sse_mutex;
     std::set<httplib::DataSink*> sse_clients;
 
+    // MJPEG stream
+    std::mutex frame_mutex;
+    std::vector<uint8_t> latest_frame;
+    std::set<httplib::DataSink*> mjpeg_clients;
+
     void register_routes();
     json rom_result_to_json(const ShoulderRomResult& result);
     json session_to_json(const SessionData& session);
@@ -151,6 +156,43 @@ void WebServer::Impl::register_routes() {
             sessions.push_back(s);
         }
         res.set_content(sessions.dump(), "application/json");
+    });
+
+    // ── MJPEG video stream ──
+    server->Get("/api/v1/camera/stream", [this](const httplib::Request&, httplib::Response& res) {
+        res.set_header("Content-Type", "multipart/x-mixed-replace; boundary=frame");
+        res.set_header("Cache-Control", "no-cache");
+        res.set_header("Connection", "keep-alive");
+        res.set_header("Access-Control-Allow-Origin", "*");
+
+        res.set_chunked_content_provider(
+            "multipart/x-mixed-replace; boundary=frame",
+            [this](size_t /*offset*/, httplib::DataSink& sink) {
+                {
+                    std::lock_guard<std::mutex> lock(frame_mutex);
+                    mjpeg_clients.insert(&sink);
+                }
+                while (sink.is_writable()) {
+                    std::vector<uint8_t> frame_data;
+                    {
+                        std::lock_guard<std::mutex> lock(frame_mutex);
+                        frame_data = latest_frame;
+                    }
+                    if (!frame_data.empty()) {
+                        std::string header = "--frame\r\nContent-Type: image/jpeg\r\nContent-Length: " +
+                            std::to_string(frame_data.size()) + "\r\n\r\n";
+                        sink.write(header.c_str(), header.size());
+                        sink.write(reinterpret_cast<const char*>(frame_data.data()), frame_data.size());
+                        sink.write("\r\n", 2);
+                    }
+                    std::this_thread::sleep_for(std::chrono::milliseconds(33));
+                }
+                {
+                    std::lock_guard<std::mutex> lock(frame_mutex);
+                    mjpeg_clients.erase(&sink);
+                }
+                return true;
+            });
     });
 
     // ── SSE endpoint for real-time ROM data ──
@@ -293,6 +335,32 @@ void WebServer::update_result(const ShoulderRomResult& result) {
 void WebServer::increment_frame_count() {
     std::lock_guard<std::mutex> lock(impl_->state_mutex);
     impl_->total_frames++;
+}
+
+void WebServer::push_frame(const std::vector<uint8_t>& jpeg_data) {
+    {
+        std::lock_guard<std::mutex> lock(impl_->frame_mutex);
+        impl_->latest_frame = jpeg_data;
+    }
+
+    // Also broadcast via SSE as base64
+    static const char b64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    std::string encoded;
+    encoded.reserve(((jpeg_data.size() + 2) / 3) * 4);
+    for (size_t i = 0; i < jpeg_data.size(); i += 3) {
+        unsigned int n = static_cast<unsigned int>(jpeg_data[i]) << 16;
+        if (i + 1 < jpeg_data.size()) n |= static_cast<unsigned int>(jpeg_data[i + 1]) << 8;
+        if (i + 2 < jpeg_data.size()) n |= static_cast<unsigned int>(jpeg_data[i + 2]);
+        encoded += b64[(n >> 18) & 0x3F];
+        encoded += b64[(n >> 12) & 0x3F];
+        encoded += (i + 1 < jpeg_data.size()) ? b64[(n >> 6) & 0x3F] : '=';
+        encoded += (i + 2 < jpeg_data.size()) ? b64[n & 0x3F] : '=';
+    }
+
+    json data;
+    data["type"] = "video_frame";
+    data["frame"] = encoded;
+    impl_->broadcast_sse(data.dump());
 }
 
 } // namespace oculus

@@ -68,6 +68,14 @@ endif()
 if(NOT CMAKE_TRY_COMPILE_TARGET_TYPE STREQUAL "STATIC_LIBRARY")
     add_executable(oculus apps/oculus-sensor/main.cpp)
     target_link_libraries(oculus PRIVATE oculus_lib)
+    target_include_directories(oculus PRIVATE
+        ${opencv_SOURCE_DIR}/modules/core/include
+        ${opencv_SOURCE_DIR}/modules/imgproc/include
+        ${opencv_SOURCE_DIR}/modules/imgcodecs/include
+        ${opencv_SOURCE_DIR}/modules/videoio/include
+        ${opencv_BINARY_DIR}
+        ${CMAKE_BINARY_DIR}
+    )
 endif()
 
 if(BUILD_TESTS)

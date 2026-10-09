@@ -103,6 +103,19 @@ async function loadSessionList() {
 let realtimeAngleChart = null;
 
 function initLiveView() {
+    const canvas = document.getElementById('video-canvas');
+    const placeholder = document.getElementById('video-placeholder');
+    const ctx = canvas.getContext('2d');
+    let frameImg = new Image();
+
+    frameImg.onload = () => {
+        if (canvas.width !== frameImg.width) canvas.width = frameImg.width;
+        if (canvas.height !== frameImg.height) canvas.height = frameImg.height;
+        ctx.drawImage(frameImg, 0, 0);
+        if (placeholder) placeholder.style.display = 'none';
+    };
+
+    // ROM angles chart
     realtimeAngleChart = ChartUtils.createRealtimeChart('angle-chart', {
         title: 'Shoulder Angles Over Time',
         yLabel: 'Angle (°)',
@@ -112,7 +125,7 @@ function initLiveView() {
     const ws = new OculusWebSocket();
     ws.on('connected', () => {
         updateConnectionStatus(true);
-        showToast('WebSocket connected');
+        showToast('Connected');
     });
     ws.on('disconnected', () => {
         updateConnectionStatus(false);
@@ -120,10 +133,14 @@ function initLiveView() {
     ws.on('rom_angles', (data) => {
         updateLiveAngles(data);
     });
-    ws.on('data', (data) => {
-        if (data.angles) {
-            updateLiveAngles(data);
+    ws.on('video_frame', (data) => {
+        if (data.frame) {
+            frameImg.src = 'data:image/jpeg;base64,' + data.frame;
         }
+    });
+    ws.on('data', (data) => {
+        if (data.angles) updateLiveAngles(data);
+        if (data.frame) frameImg.src = 'data:image/jpeg;base64,' + data.frame;
     });
     ws.connect();
 }
