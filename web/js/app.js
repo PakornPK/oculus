@@ -354,9 +354,6 @@ function updateCompare3D(kpA, kpB) {
             ${armB ? `<div>ROM: <strong style="color:var(--accent-orange)">${delta > 0 ? '+' : ''}${delta.toFixed(1)}°</strong></div>` : ''}
         `;
     }
-            return flat;
-        };
-        const fa = flattenAngles(capturedFrameA);
 }
 
 function swapToCompare3D() {
