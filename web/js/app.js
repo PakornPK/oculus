@@ -131,20 +131,16 @@ function initSkeleton3D() {
     controls.dampingFactor = 0.05;
     controls.target.set(0, 1, 0);
 
-    // Grid
-    const grid = new THREE.GridHelper(4, 20, 0x334155, 0x1e293b);
+    // Grid (subtle)
+    const grid = new THREE.GridHelper(2, 10, 0x1e293b, 0x0f172a);
     scene.add(grid);
-
-    // Axes
-    const axes = new THREE.AxesHelper(1);
-    scene.add(axes);
 
     // Skeleton group
     const skeletonGroup = new THREE.Group();
     scene.add(skeletonGroup);
 
     // Create spheres for keypoints
-    const sphereGeo = new THREE.SphereGeometry(0.02, 16, 16);
+    const sphereGeo = new THREE.SphereGeometry(0.008, 8, 8);
     const materials = {
         left: new THREE.MeshBasicMaterial({ color: 0x4ade80 }),
         right: new THREE.MeshBasicMaterial({ color: 0xf87171 }),
@@ -174,7 +170,7 @@ function initSkeleton3D() {
         [12,14],[14,16]
     ];
 
-    const lineMaterial = new THREE.LineBasicMaterial({ color: 0xfbbf24, linewidth: 2 });
+    const lineMaterial = new THREE.LineBasicMaterial({ color: 0x475569 });
     const lines = [];
     for (const [i, j] of bones) {
         const geometry = new THREE.BufferGeometry();
