@@ -819,6 +819,157 @@ function initLiveView() {
         showToast(`${label} ROM: ${rom.toFixed(1)}° (${severity})`);
     });
 
+    // Batch: Measure all movements
+    document.getElementById('btn-batch')?.addEventListener('click', () => {
+        if (!capturedFrameA || !capturedFrameB) {
+            showToast('Capture A and B first');
+            return;
+        }
+
+        const flatten = (data) => {
+            const flat = {};
+            const angles = data?.angles?.angles || data?.angles || {};
+            for (const [key, val] of Object.entries(angles)) {
+                if (typeof val === 'object' && val !== null) {
+                    for (const [sub, v] of Object.entries(val)) {
+                        flat[`${key}_${sub}`] = v;
+                    }
+                }
+            }
+            return flat;
+        };
+
+        const fa = flatten(capturedFrameA.angles);
+        const fb = flatten(capturedFrameB.angles);
+        const side = selectedSide;
+        const movements = [
+            'abduction', 'forward_flexion', 'extension',
+            'external_rotation', 'internal_rotation', 'adduction',
+            'horizontal_adduction', 'scapular_protraction',
+            'scapular_retraction', 'shoulder_elevation', 'shoulder_depression'
+        ];
+
+        let html = '<div style="font-size:0.75rem">';
+        html += `<div style="font-weight:600;margin-bottom:0.5rem">${side.toUpperCase()} ARM — Batch Measurement</div>`;
+        html += '<table style="width:100%;border-collapse:collapse">';
+        html += '<tr style="border-bottom:1px solid var(--border)">';
+        html += '<td style="padding:3px 0">Movement</td><td style="text-align:right">A</td><td style="text-align:right">ROM</td><td style="text-align:right">B</td></tr>';
+
+        for (const mv of movements) {
+            const a = fa[`${side}_${mv}`] ?? 0;
+            const b = fb[`${side}_${mv}`] ?? 0;
+            const rom = b - a;
+            const abs = Math.abs(rom);
+            const color = abs < 10 ? '#2ECC71' : abs < 30 ? '#F5A623' : abs < 60 ? '#E74C3C' : '#E74C3C';
+
+            html += `<tr style="border-bottom:1px solid var(--border)">`;
+            html += `<td style="padding:3px 0;font-size:0.7rem">${mv.replace(/_/g, ' ')}</td>`;
+            html += `<td style="text-align:right;font-size:0.75rem;color:#4FC3F7">${a.toFixed(1)}°</td>`;
+            html += `<td style="text-align:right;font-size:0.75rem;font-weight:600;color:${color}">${rom > 0 ? '+' : ''}${rom.toFixed(1)}°</td>`;
+            html += `<td style="text-align:right;font-size:0.75rem;color:#FFB74D">${b.toFixed(1)}°</td>`;
+            html += `</tr>`;
+        }
+        html += '</table></div>';
+
+        document.getElementById('measure-result').innerHTML = html;
+        document.getElementById('batch-status').innerHTML =
+            `<span style="color:var(--accent-green)">✓ Batch complete — 11 movements measured</span>`;
+        showToast('Batch measurement complete');
+    });
+
+    // Export CSV
+    document.getElementById('btn-export-csv')?.addEventListener('click', () => {
+        const movements = ['abduction', 'forward_flexion', 'extension', 'external_rotation', 'internal_rotation', 'adduction', 'horizontal_adduction', 'scapular_protraction', 'scapular_retraction', 'shoulder_elevation', 'shoulder_depression'];
+        const flatten = (data) => {
+            const flat = {};
+            const angles = data?.angles?.angles || data?.angles || {};
+            for (const [key, val] of Object.entries(angles)) {
+                if (typeof val === 'object' && val !== null) {
+                    for (const [sub, v] of Object.entries(val)) flat[`${key}_${sub}`] = v;
+                }
+            }
+            return flat;
+        };
+        const fa = flatten(capturedFrameA?.angles);
+        const fb = flatten(capturedFrameB?.angles);
+
+        let csv = 'movement,side,angle_a,angle_b,rom\n';
+        for (const mv of movements) {
+            const a = fa[`${selectedSide}_${mv}`] ?? 0;
+            const b = fb[`${selectedSide}_${mv}`] ?? 0;
+            csv += `${mv},${selectedSide},${a.toFixed(1)},${b.toFixed(1)},${(b-a).toFixed(1)}\n`;
+        }
+
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'rom_measurements.csv';
+        a.click();
+        showToast('CSV exported');
+    });
+
+    // Export JSON
+    document.getElementById('btn-export-json')?.addEventListener('click', () => {
+        const data = {
+            session: new Date().toISOString(),
+            side: selectedSide,
+            measurements: {
+                frameA: capturedFrameA?.angles,
+                frameB: capturedFrameB?.angles
+            }
+        };
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'rom_measurements.json';
+        a.click();
+        showToast('JSON exported');
+    });
+
+    // Report
+    document.getElementById('btn-report')?.addEventListener('click', () => {
+        const movements = ['abduction', 'forward_flexion', 'extension', 'external_rotation', 'internal_rotation', 'adduction', 'horizontal_adduction', 'scapular_protraction', 'scapular_retraction', 'shoulder_elevation', 'shoulder_depression'];
+        const flatten = (data) => {
+            const flat = {};
+            const angles = data?.angles?.angles || data?.angles || {};
+            for (const [key, val] of Object.entries(angles)) {
+                if (typeof val === 'object' && val !== null) {
+                    for (const [sub, v] of Object.entries(val)) flat[`${key}_${sub}`] = v;
+                }
+            }
+            return flat;
+        };
+        const fa = flatten(capturedFrameA?.angles);
+        const fb = flatten(capturedFrameB?.angles);
+
+        let html = '<div style="font-size:0.75rem">';
+        html += `<div style="font-weight:600;margin-bottom:0.5rem">ROM Assessment Report</div>`;
+        html += `<div style="color:var(--text-secondary);margin-bottom:0.5rem">${selectedSide.toUpperCase()} | ${new Date().toLocaleDateString()}</div>`;
+        html += '<table style="width:100%;border-collapse:collapse">';
+        html += '<tr style="border-bottom:1px solid var(--border)"><td>Movement</td><td style="text-align:right">A</td><td style="text-align:right">ROM</td><td style="text-align:right">B</td><td style="text-align:right">Status</td></tr>';
+
+        for (const mv of movements) {
+            const a = fa[`${selectedSide}_${mv}`] ?? 0;
+            const b = fb[`${selectedSide}_${mv}`] ?? 0;
+            const rom = b - a;
+            const abs = Math.abs(rom);
+            const status = abs < 10 ? 'Normal' : abs < 30 ? 'Mild' : abs < 60 ? 'Moderate' : 'Severe';
+            const color = abs < 10 ? '#2ECC71' : abs < 30 ? '#F5A623' : '#E74C3C';
+
+            html += `<tr style="border-bottom:1px solid var(--border)"><td style="padding:3px 0">${mv.replace(/_/g, ' ')}</td>`;
+            html += `<td style="text-align:right">${a.toFixed(1)}°</td>`;
+            html += `<td style="text-align:right;font-weight:600;color:${color}">${rom.toFixed(1)}°</td>`;
+            html += `<td style="text-align:right">${b.toFixed(1)}°</td>`;
+            html += `<td style="text-align:right;color:${color}">${status}</td></tr>`;
+        }
+        html += '</table></div>';
+
+        document.getElementById('measure-result').innerHTML = html;
+        showToast('Report generated');
+    });
+
     // Reset
     document.getElementById('btn-reset')?.addEventListener('click', () => {
         capturedFrameA = null;

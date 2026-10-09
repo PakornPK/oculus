@@ -121,12 +121,12 @@
                     <div style="font-size:0.7rem;color:var(--text-secondary);margin-bottom:0.35rem;text-transform:uppercase;letter-spacing:0.05em">3. Measure</div>
                     <select id="measure-movement" style="width:100%;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border);border-radius:4px;padding:8px;font-size:0.85rem;margin-bottom:0.5rem">
                         <option value="">Select movement...</option>
-                        <option value="abduction">Abduction (กางแขน)</option>
-                        <option value="forward_flexion">Forward Flexion (ยกแขนหน้า)</option>
-                        <option value="extension">Extension (เหยียดหลัง)</option>
-                        <option value="external_rotation">External Rotation (หมุนออก)</option>
-                        <option value="internal_rotation">Internal Rotation (หมุนเข้า)</option>
-                        <option value="adduction">Adduction (หุบแขน)</option>
+                        <option value="abduction">Abduction</option>
+                        <option value="forward_flexion">Forward Flexion</option>
+                        <option value="extension">Extension</option>
+                        <option value="external_rotation">External Rotation</option>
+                        <option value="internal_rotation">Internal Rotation</option>
+                        <option value="adduction">Adduction</option>
                         <option value="horizontal_adduction">Horizontal Adduction</option>
                         <option value="scapular_protraction">Scapular Protraction</option>
                         <option value="scapular_retraction">Scapular Retraction</option>
@@ -137,6 +137,20 @@
                         Measure ROM
                     </button>
                     <div id="measure-result" style="margin-top:0.75rem"></div>
+                </div>
+
+                <!-- Gocator Features -->
+                <div class="card" style="padding:0.75rem">
+                    <div style="font-size:0.7rem;color:var(--text-secondary);margin-bottom:0.35rem;text-transform:uppercase;letter-spacing:0.05em">Tools</div>
+                    <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+                        <button id="btn-batch" class="btn" style="flex:1;padding:6px;font-size:0.75rem">Batch All</button>
+                        <button id="btn-export-csv" class="btn" style="flex:1;padding:6px;font-size:0.75rem">Export CSV</button>
+                        <button id="btn-export-json" class="btn" style="flex:1;padding:6px;font-size:0.75rem">Export JSON</button>
+                        <button id="btn-report" class="btn" style="flex:1;padding:6px;font-size:0.75rem">Report</button>
+                    </div>
+                    <div id="batch-status" style="font-size:0.75rem;color:var(--text-secondary);margin-top:0.5rem">
+                        Batch: measure all movements at once
+                    </div>
                 </div>
 
                 <!-- Reset -->
