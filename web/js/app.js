@@ -357,8 +357,22 @@ function initLiveView() {
                 </div>`;
         }
 
-        // Update 3D
-        if (compare3d) updateCompare3D(capturedFrameA.keypoints, capturedFrameB.keypoints);
+        // Update 3D comparison
+        const c3d = document.getElementById('compare3d-container');
+        const live3d = document.getElementById('skeleton3d-container');
+        if (c3d) c3d.style.display = '';
+        if (live3d) live3d.style.display = 'none';
+        if (compare3d) {
+            // Resize renderer when shown
+            if (c3d) {
+                const w = c3d.clientWidth || 400;
+                const h = c3d.clientHeight || 400;
+                compare3d.renderer.setSize(w, h);
+                compare3d.camera.aspect = w / h;
+                compare3d.camera.updateProjectionMatrix();
+            }
+            updateCompare3D(capturedFrameA.keypoints, capturedFrameB.keypoints);
+        }
         showToast(`${label} ROM: ${rom.toFixed(1)}° (${severity})`);
     });
 
@@ -370,6 +384,11 @@ function initLiveView() {
         if (res) res.innerHTML = '';
         const st = document.getElementById('capture-status');
         if (st) st.innerHTML = 'Press A at resting, B at max ROM';
+        // Switch back to live 3D
+        const c3d = document.getElementById('compare3d-container');
+        const live3d = document.getElementById('skeleton3d-container');
+        if (c3d) c3d.style.display = 'none';
+        if (live3d) live3d.style.display = '';
         showToast('Reset');
     });
 
