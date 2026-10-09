@@ -35,6 +35,7 @@ oculus_add_test(shoulder_rom_analyzer_test unit/rom/shoulder_rom_analyzer_test.c
 oculus_add_test(session_manager_test unit/rom/session_manager_test.cpp)
 oculus_add_test(calibrator_test unit/rom/calibrator_test.cpp)
 oculus_add_test(recipe_test unit/rom/recipe_test.cpp)
+oculus_add_test(formula_test unit/rom/formula_test.cpp)
 oculus_add_test(web_server_test unit/http/web_server_test.cpp)
 oculus_add_test(storage_test unit/storage/storage_test.cpp)
 oculus_add_test(watchdog_test unit/runtime/watchdog_test.cpp)
