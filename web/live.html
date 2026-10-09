@@ -73,61 +73,60 @@
                 </div>
             </div>
 
-            <!-- Right panel: Controls + Data -->
+            <!-- Right panel: Gocator-style workflow -->
             <div style="display:flex;flex-direction:column;gap:1rem">
-                <!-- Side selector (always visible — key clinical control) -->
+                <!-- 1. Side selector -->
                 <div class="card" style="padding:0.75rem">
-                    <div style="font-size:0.7rem;color:var(--text-secondary);margin-bottom:0.35rem;text-transform:uppercase;letter-spacing:0.05em">Assessed Side</div>
+                    <div style="font-size:0.7rem;color:var(--text-secondary);margin-bottom:0.35rem;text-transform:uppercase;letter-spacing:0.05em">1. Select Side</div>
                     <div style="display:flex;gap:0.5rem">
-                        <button id="btn-side-left" class="btn active" style="flex:1;padding:8px;font-size:0.85rem"><span style="color:#4ade80">●</span> Left</button>
-                        <button id="btn-side-right" class="btn" style="flex:1;padding:8px;font-size:0.85rem"><span style="color:#f87171">●</span> Right</button>
-                        <button id="btn-side-both" class="btn" style="flex:1;padding:8px;font-size:0.85rem">Both</button>
+                        <button id="btn-side-left" class="btn active" style="flex:1;padding:8px;font-size:0.85rem"><span style="color:#4FC3F7">●</span> Left</button>
+                        <button id="btn-side-right" class="btn" style="flex:1;padding:8px;font-size:0.85rem"><span style="color:#FFB74D">●</span> Right</button>
                     </div>
                 </div>
 
-                <!-- Mode toggle -->
+                <!-- 2. Capture -->
                 <div class="card" style="padding:0.75rem">
+                    <div style="font-size:0.7rem;color:var(--text-secondary);margin-bottom:0.35rem;text-transform:uppercase;letter-spacing:0.05em">2. Capture Frames</div>
                     <div style="display:flex;gap:0.5rem">
-                        <button id="mode-live" class="btn active" style="flex:1;padding:8px;font-size:0.85rem">Live</button>
-                        <button id="mode-compare" class="btn" style="flex:1;padding:8px;font-size:0.85rem">Compare A/B</button>
-                    </div>
-                </div>
-
-                <!-- Live: Current angles -->
-                <div id="panel-live" class="card" style="flex:1">
-                    <div class="card-header">
-                        <h2>Current Angles</h2>
-                    </div>
-                    <div class="angle-display" id="angles-display">
-                        <!-- Filled by JS -->
-                    </div>
-                </div>
-
-                <!-- Compare: Capture controls + results -->
-                <div id="panel-compare" class="card" style="display:none;flex:1">
-                    <div class="card-header">
-                        <h2>ROM Comparison</h2>
-                    </div>
-                    <div style="display:flex;gap:0.5rem;margin-bottom:0.5rem">
-                        <button id="btn-capture-a" class="btn" style="flex:1;padding:6px;font-size:0.8rem;background:#1e293b">
-                            <strong>A: Resting</strong>
+                        <button id="btn-capture-a" class="btn" style="flex:1;padding:10px;font-size:0.85rem;background:#1e293b">
+                            <div style="font-weight:600">A: Resting</div>
+                            <div style="font-size:0.65rem;opacity:0.7">Baseline</div>
                         </button>
-                        <button id="btn-capture-b" class="btn" style="flex:1;padding:6px;font-size:0.8rem;background:#1e293b">
-                            <strong>B: Max ROM</strong>
+                        <button id="btn-capture-b" class="btn" style="flex:1;padding:10px;font-size:0.85rem;background:#1e293b">
+                            <div style="font-weight:600">B: Max ROM</div>
+                            <div style="font-size:0.65rem;opacity:0.7">Peak</div>
                         </button>
                     </div>
-                    <div style="font-size:0.65rem;color:var(--text-secondary);margin-bottom:0.5rem;text-align:center">
-                        Keyboard: <kbd style="background:var(--bg-card);padding:1px 4px;border-radius:3px">A</kbd> capture rest &middot; <kbd style="background:var(--bg-card);padding:1px 4px;border-radius:3px">B</kbd> capture max
+                    <div id="capture-status" style="font-size:0.75rem;color:var(--text-secondary);margin-top:0.5rem">
+                        Press A at resting, B at max ROM
                     </div>
-                    <div style="display:flex;gap:0.5rem;margin-bottom:0.75rem">
-                        <button id="btn-compare" class="btn" style="flex:1;padding:6px;font-size:0.8rem;background:var(--accent);color:#000">Compare</button>
-                        <button id="btn-reset" class="btn" style="padding:6px;font-size:0.8rem;background:var(--accent-red)">Reset</button>
-                    </div>
-                    <div id="compare-status" style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:0.5rem">
-                        Capture A (resting) → Move arm → Capture B (max ROM) → Compare
-                    </div>
-                    <div id="compare-result"></div>
                 </div>
+
+                <!-- 3. Measure -->
+                <div class="card" style="padding:0.75rem">
+                    <div style="font-size:0.7rem;color:var(--text-secondary);margin-bottom:0.35rem;text-transform:uppercase;letter-spacing:0.05em">3. Measure</div>
+                    <select id="measure-movement" style="width:100%;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border);border-radius:4px;padding:8px;font-size:0.85rem;margin-bottom:0.5rem">
+                        <option value="">Select movement...</option>
+                        <option value="abduction">Abduction (กางแขน)</option>
+                        <option value="forward_flexion">Forward Flexion (ยกแขนหน้า)</option>
+                        <option value="extension">Extension (เหยียดหลัง)</option>
+                        <option value="external_rotation">External Rotation (หมุนออก)</option>
+                        <option value="internal_rotation">Internal Rotation (หมุนเข้า)</option>
+                        <option value="adduction">Adduction (หุบแขน)</option>
+                        <option value="horizontal_adduction">Horizontal Adduction</option>
+                        <option value="scapular_protraction">Scapular Protraction</option>
+                        <option value="scapular_retraction">Scapular Retraction</option>
+                        <option value="shoulder_elevation">Shoulder Elevation</option>
+                        <option value="shoulder_depression">Shoulder Depression</option>
+                    </select>
+                    <button id="btn-measure" class="btn" style="width:100%;padding:10px;font-size:0.9rem;background:var(--accent);color:#000;font-weight:600">
+                        Measure ROM
+                    </button>
+                    <div id="measure-result" style="margin-top:0.75rem"></div>
+                </div>
+
+                <!-- Reset -->
+                <button id="btn-reset" class="btn" style="padding:8px;font-size:0.8rem;background:var(--accent-red)">Reset All</button>
             </div>
         </div>
 
@@ -135,19 +134,6 @@
         <div class="card">
             <div class="card-header">
                 <h2>Angle Timeline</h2>
-                <select id="chart-movement" style="background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:0.8rem">
-                    <option value="abduction">Abduction</option>
-                    <option value="forward_flexion">Forward Flexion</option>
-                    <option value="extension">Extension</option>
-                    <option value="external_rotation">External Rotation</option>
-                    <option value="internal_rotation">Internal Rotation</option>
-                    <option value="adduction">Adduction</option>
-                    <option value="horizontal_adduction">Horizontal Adduction</option>
-                    <option value="scapular_protraction">Scapular Protraction</option>
-                    <option value="scapular_retraction">Scapular Retraction</option>
-                    <option value="shoulder_elevation">Shoulder Elevation</option>
-                    <option value="shoulder_depression">Shoulder Depression</option>
-                </select>
             </div>
             <div class="chart-wrapper" style="height:200px">
                 <canvas id="angle-chart"></canvas>

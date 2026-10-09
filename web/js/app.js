@@ -678,47 +678,7 @@ function initLiveView() {
         if (placeholder) placeholder.style.display = 'none';
     };
 
-    // Populate angles display
-    const anglesDiv = document.getElementById('angles-display');
-    if (anglesDiv) {
-        let html = '';
-        for (const mv of MOVEMENTS) {
-            const label = mv.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-            html += `<div class="angle-row">
-                <span class="label">${label} L/R</span>
-                <span>
-                    <span class="value left" id="angle-${mv}-left">—°</span>
-                    <span style="color:var(--text-secondary)"> / </span>
-                    <span class="value right" id="angle-${mv}-right">—°</span>
-                </span>
-            </div>`;
-        }
-        anglesDiv.innerHTML = html;
-    }
-
-    // Mode toggle
-    const modeLive = document.getElementById('mode-live');
-    const modeCompare = document.getElementById('mode-compare');
-    const panelLive = document.getElementById('panel-live');
-    const panelCompare = document.getElementById('panel-compare');
-
-    modeLive?.addEventListener('click', () => {
-        modeLive.classList.add('active');
-        modeCompare?.classList.remove('active');
-        if (panelLive) panelLive.style.display = '';
-        if (panelCompare) panelCompare.style.display = 'none';
-        if (!comparisonActive) swapToLive3D();
-    });
-
-    modeCompare?.addEventListener('click', () => {
-        modeCompare.classList.add('active');
-        modeLive?.classList.remove('active');
-        if (panelLive) panelLive.style.display = 'none';
-        if (panelCompare) panelCompare.style.display = '';
-        if (comparisonActive) swapToCompare3D();
-    });
-
-    // Side selector (global — affects both live and compare views)
+    // Side selector
     const btnLeft = document.getElementById('btn-side-left');
     const btnRight = document.getElementById('btn-side-right');
     const btnBoth = document.getElementById('btn-side-both');
@@ -755,8 +715,8 @@ function initLiveView() {
             angles: JSON.parse(JSON.stringify(latestAngles)),
             time: new Date().toLocaleTimeString()
         };
-        document.getElementById('compare-status').innerHTML =
-            `<span style="color:var(--accent-green)">✓ A captured (${capturedFrameA.time})</span> — Move arm, then capture B`;
+        document.getElementById('capture-status').innerHTML =
+            `<span style="color:var(--accent-green)">✓ A captured (${capturedFrameA.time})</span>`;
         showToast('Frame A captured (resting)');
     });
 
@@ -767,27 +727,80 @@ function initLiveView() {
             angles: JSON.parse(JSON.stringify(latestAngles)),
             time: new Date().toLocaleTimeString()
         };
-        document.getElementById('compare-status').innerHTML =
-            `<span style="color:var(--accent-green)">✓ A (${capturedFrameA?.time || '—'}) + B (${capturedFrameB.time}) captured</span> — Click Compare`;
+        document.getElementById('capture-status').innerHTML =
+            `<span style="color:var(--accent-green)">✓ A (${capturedFrameA?.time || '—'}) + B (${capturedFrameB.time})</span>`;
         showToast('Frame B captured (max ROM)');
     });
 
-    // Compare
-    document.getElementById('btn-compare')?.addEventListener('click', () => {
+    // Measure ROM (Gocator-style: select movement → get ROM)
+    document.getElementById('btn-measure')?.addEventListener('click', () => {
         if (!capturedFrameA || !capturedFrameB) {
-            document.getElementById('compare-status').innerHTML = '<span style="color:var(--accent-red)">Capture both frames first</span>';
-            showToast('Capture both frames first');
+            document.getElementById('capture-status').innerHTML =
+                '<span style="color:var(--accent-red)">Capture both frames first</span>';
             return;
         }
-        comparisonActive = true;
-        showComparison(capturedFrameA, capturedFrameB, selectedSide);
-        // Swap to dedicated comparison 3D view
+
+        const movement = document.getElementById('measure-movement')?.value;
+        if (!movement) {
+            showToast('Select a movement first');
+            return;
+        }
+
+        const flatten = (data) => {
+            const flat = {};
+            const angles = data?.angles?.angles || data?.angles || {};
+            for (const [key, val] of Object.entries(angles)) {
+                if (typeof val === 'object' && val !== null) {
+                    for (const [sub, v] of Object.entries(val)) {
+                        flat[`${key}_${sub}`] = v;
+                    }
+                }
+            }
+            return flat;
+        };
+
+        const fa = flatten(capturedFrameA.angles);
+        const fb = flatten(capturedFrameB.angles);
+        const side = selectedSide;
+
+        const valA = fa[`${side}_${movement}`] ?? 0;
+        const valB = fb[`${side}_${movement}`] ?? 0;
+        const rom = valB - valA;
+        const absROM = Math.abs(rom);
+
+        let severity, color;
+        if (absROM < 10) { severity = 'Normal'; color = '#2ECC71'; }
+        else if (absROM < 30) { severity = 'Mild'; color = '#F5A623'; }
+        else if (absROM < 60) { severity = 'Moderate'; color = '#E74C3C'; }
+        else { severity = 'Significant'; color = '#E74C3C'; }
+
+        const label = movement.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+        document.getElementById('measure-result').innerHTML = `
+            <div style="background:var(--bg-card);border-radius:8px;padding:1rem;border-left:4px solid ${color}">
+                <div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:0.5rem">${label} — ${side.toUpperCase()}</div>
+                <div style="display:flex;justify-content:space-between;margin-bottom:0.5rem">
+                    <div style="text-align:center">
+                        <div style="font-size:0.7rem;color:var(--text-secondary)">A (Rest)</div>
+                        <div style="font-size:1.2rem;font-weight:700;color:#4FC3F7">${valA.toFixed(1)}°</div>
+                    </div>
+                    <div style="text-align:center">
+                        <div style="font-size:0.7rem;color:var(--text-secondary)">ROM</div>
+                        <div style="font-size:1.5rem;font-weight:700;color:${color}">${rom > 0 ? '+' : ''}${rom.toFixed(1)}°</div>
+                    </div>
+                    <div style="text-align:center">
+                        <div style="font-size:0.7rem;color:var(--text-secondary)">B (Max)</div>
+                        <div style="font-size:1.2rem;font-weight:700;color:#FFB74D">${valB.toFixed(1)}°</div>
+                    </div>
+                </div>
+                <div style="text-align:center;font-size:0.8rem;color:${color}">${severity}</div>
+            </div>
+        `;
+
         swapToCompare3D();
         updateCompare3D(capturedFrameA.keypoints, capturedFrameB.keypoints);
-        document.getElementById('legend-a').style.display = '';
-        document.getElementById('legend-b').style.display = '';
-        document.getElementById('legend-arrow').style.display = '';
-        showToast('Comparison ready');
+
+        showToast(`${label} ROM: ${rom.toFixed(1)}° (${severity})`);
     });
 
     // Reset
@@ -795,12 +808,8 @@ function initLiveView() {
         capturedFrameA = null;
         capturedFrameB = null;
         comparisonActive = false;
-        document.getElementById('compare-result').innerHTML = '';
-        document.getElementById('compare-status').innerHTML = 'Capture A (resting) → Move arm → Capture B (max ROM) → Compare';
-        document.getElementById('legend-a').style.display = 'none';
-        document.getElementById('legend-b').style.display = 'none';
-        document.getElementById('legend-arrow').style.display = 'none';
-        // Swap back to live3D view
+        document.getElementById('measure-result').innerHTML = '';
+        document.getElementById('capture-status').innerHTML = 'Press A at resting, B at max ROM';
         swapToLive3D();
         if (skeleton3d) {
             skeleton3d.skeletonGroup.children.filter(c => c.userData?.comp).forEach(c => skeleton3d.skeletonGroup.remove(c));
