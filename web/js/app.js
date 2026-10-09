@@ -264,27 +264,21 @@ function updateCompare3D(kpA, kpB) {
     const ei = selectedSide === 'right' ? 8 : 7;
     const wi = selectedSide === 'right' ? 10 : 9;
 
-    // Anchor to Frame A's shoulder position
-    const anchorS = kpA[si];
-    const anchorOffset = anchorS ? {
-        x: -anchorS.x * scale,
-        y: anchorS.y * scale
-    } : { x: 0, y: 0 };
-
-    const drawArm = (kp, mat, offsetX, offsetY) => {
+    // Draw arms at shoulder origin (0,0,0), relative positions from each frame
+    const drawArm = (kp, mat) => {
         const s = kp[si], e = kp[ei], w = kp[wi];
         if (!s || !e || !w || s.confidence < 0.3) return null;
 
-        // Anchor to Frame A's shoulder, both arms at same relative position
-        const shoulder = new THREE.Vector3(offsetX, offsetY, 0);
+        // Relative to shoulder (origin)
+        const shoulder = new THREE.Vector3(0, 0, 0);
         const elbow = new THREE.Vector3(
-            (e.x - s.x) * scale + offsetX,
-            -(e.y - s.y) * scale + offsetY,
+            (e.x - s.x) * scale,
+            -(e.y - s.y) * scale,
             0
         );
         const wrist = new THREE.Vector3(
-            (w.x - s.x) * scale + offsetX,
-            -(w.y - s.y) * scale + offsetY,
+            (w.x - s.x) * scale,
+            -(w.y - s.y) * scale,
             0
         );
 
@@ -325,8 +319,8 @@ function updateCompare3D(kpA, kpB) {
         return { shoulder, elbow, wrist, angle };
     };
 
-    const armA = drawArm(kpA, matA, 0, 0);
-    const armB = drawArm(kpB, matB, 0, 0);
+    const armA = drawArm(kpA, matA);
+    const armB = drawArm(kpB, matB);
 
     if (armA && armB) {
         // Use server-provided angles for display (consistent with measurement frame)
