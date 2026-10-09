@@ -1,4 +1,5 @@
 #include "oculus/rom/joint_angle_calculator.hpp"
+#include <spdlog/spdlog.h>
 #include <stdexcept>
 
 namespace oculus {
@@ -29,6 +30,9 @@ float JointAngleCalculator::angle_from_vertical(
     cos_angle = std::max(-1.0f, std::min(1.0f, cos_angle));
     float angle_rad = std::acos(cos_angle);
     float angle_deg = angle_rad * 180.0f / M_PI;
+
+    spdlog::debug("angle_from_vertical: arm=({:.1f},{:.1f}) ref=({:.1f},{:.1f}) cos={:.3f} deg={:.1f}",
+        upper_arm.x, upper_arm.y, reference.x, reference.y, cos_angle, angle_deg);
 
     return angle_deg;
 }
