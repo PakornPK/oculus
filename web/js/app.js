@@ -158,7 +158,7 @@ function initSkeleton3D() {
         spheres.push(sphere);
     }
 
-    // Bone connections
+    // Bone connections with per-side coloring
     const bones = [
         [0,1],[0,2],[1,3],[2,4],
         [5,6],
@@ -170,11 +170,18 @@ function initSkeleton3D() {
         [12,14],[14,16]
     ];
 
-    const lineMaterial = new THREE.LineBasicMaterial({ color: 0xfbbf24, linewidth: 3 });
+    const lineMatLeft = new THREE.LineBasicMaterial({ color: 0x4ade80 });
+    const lineMatRight = new THREE.LineBasicMaterial({ color: 0xf87171 });
+    const lineMatCenter = new THREE.LineBasicMaterial({ color: 0xfbbf24 });
+
     const lines = [];
     for (const [i, j] of bones) {
         const geometry = new THREE.BufferGeometry();
-        const line = new THREE.Line(geometry, lineMaterial);
+        const isLeft = LEFT_INDICES.has(i) || LEFT_INDICES.has(j);
+        const isRight = RIGHT_INDICES.has(i) || RIGHT_INDICES.has(j);
+        const mat = (isLeft && !isRight) ? lineMatLeft :
+                    (isRight && !isLeft) ? lineMatRight : lineMatCenter;
+        const line = new THREE.Line(geometry, mat);
         line.visible = false;
         skeletonGroup.add(line);
         lines.push({ line, i, j });
@@ -250,15 +257,33 @@ function updateSkeleton3D(keypoints) {
     const scale = 0.003; // pixel to 3D unit
     const centerY = 1.0;
 
-    // Update sphere positions (filtered by selected side)
-    const refX = keypoints[6]?.x || 320;
+    // Update sphere positions with depth estimation
+    // Shoulder width = reference for depth
+    const ls = keypoints[5], rs = keypoints[6];
+    const shoulderWidth = (ls && rs && ls.confidence > 0.3 && rs.confidence > 0.3)
+        ? Math.abs(ls.x - rs.x) : 100;
+    const depthScale = shoulderWidth * scale * 0.5;
 
     for (let i = 0; i < 17; i++) {
         const kp = keypoints[i];
         if (kp.confidence > 0.3 && isSideVisible(i)) {
+            // Depth estimation based on body model
             let z = 0;
-            if (i === 7 || i === 8) z = Math.abs(kp.x - refX) * scale * 0.3;
-            else if (i === 9 || i === 10) z = Math.abs(kp.x - refX) * scale * 0.5;
+            const shoulderX = (i % 2 === 1) ? (ls?.x || 280) : (rs?.x || 360);
+
+            if (i === 0) z = depthScale * 0.8;           // nose - forward
+            else if (i === 1 || i === 2) z = depthScale * 0.7;  // eyes
+            else if (i === 3 || i === 4) z = depthScale * 0.5;  // ears
+            else if (i === 5 || i === 6) z = 0;                  // shoulders - center
+            else if (i === 7 || i === 8) {                        // elbows
+                const lateralDist = Math.abs(kp.x - shoulderX);
+                z = lateralDist * scale * 0.4;
+            } else if (i === 9 || i === 10) {                     // wrists
+                const lateralDist = Math.abs(kp.x - shoulderX);
+                z = lateralDist * scale * 0.6;
+            } else if (i === 11 || i === 12) z = 0;               // hips - center
+            else if (i === 13 || i === 14) z = -depthScale * 0.1; // knees - slightly back
+            else if (i === 15 || i === 16) z = -depthScale * 0.2; // ankles - slightly back
 
             spheres[i].position.set(
                 (kp.x - 320) * scale,
@@ -273,16 +298,15 @@ function updateSkeleton3D(keypoints) {
 
     // Update bone lines
     for (const { line, i, j } of lines) {
-        if (spheres[i].visible && spheres[j].visible) {
-            const positions = new Float32Array([
+        const visible = spheres[i]?.visible && spheres[j]?.visible;
+        line.visible = visible;
+        if (visible) {
+            const pos = new Float32Array([
                 spheres[i].position.x, spheres[i].position.y, spheres[i].position.z,
                 spheres[j].position.x, spheres[j].position.y, spheres[j].position.z,
             ]);
-            line.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            line.geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3));
             line.geometry.attributes.position.needsUpdate = true;
-            line.visible = true;
-        } else {
-            line.visible = false;
         }
     }
 }
@@ -294,6 +318,8 @@ let capturedFrameA = null;  // { keypoints, angles, time }
 let capturedFrameB = null;
 let selectedSide = 'left';  // 'left' or 'right'
 let comparisonActive = false;
+
+
 
 // Crop boundary state (user-adjustable)
 let cropRect = { x: 185, y: 0, w: 270, h: 360 };
@@ -413,12 +439,14 @@ function drawCropBoundary(ctx, w, h) {
     ctx.fillText(`crop: ${Math.round(cropRect.x)},${Math.round(cropRect.y)} ${Math.round(cropRect.w)}x${Math.round(cropRect.h)}`, cx + 2, cy - 4);
 }
 
+// Keypoint indices by side (COCO-17 format)
 const LEFT_INDICES = new Set([1, 3, 5, 7, 9, 11, 13, 15]);
 const RIGHT_INDICES = new Set([2, 4, 6, 8, 10, 12, 14, 16]);
 const CENTER_INDICES = new Set([0]);
 
 function isSideVisible(idx) {
     if (CENTER_INDICES.has(idx)) return true;
+    if (selectedSide === 'both') return true;
     if (selectedSide === 'left') return LEFT_INDICES.has(idx);
     return RIGHT_INDICES.has(idx);
 }
@@ -426,31 +454,60 @@ function isSideVisible(idx) {
 function drawSkeletonOverlay(ctx, keypoints, w, h) {
     if (!keypoints || keypoints.length < 17) return;
 
-    // Draw bones (filtered by selected side)
+    const showBoth = selectedSide === 'both';
+
+    // Draw bones (filtered and color-coded by side)
     ctx.lineWidth = 3;
-    ctx.strokeStyle = '#fbbf24';
     for (const [i, j] of SKELETON_BONES) {
         if (!isSideVisible(i) && !isSideVisible(j)) continue;
         const a = keypoints[i], b = keypoints[j];
-        if (a.confidence > 0.3 && b.confidence > 0.3) {
-            ctx.beginPath();
-            ctx.moveTo(a.x * w / 640, a.y * h / 360);
-            ctx.lineTo(b.x * w / 640, b.y * h / 360);
-            ctx.stroke();
+        if (a.confidence <= 0.3 || b.confidence <= 0.3) continue;
+
+        // Color bone by side: left=green, right=red, cross=center amber
+        const isLeftBone = LEFT_INDICES.has(i) || LEFT_INDICES.has(j);
+        const isRightBone = RIGHT_INDICES.has(i) || RIGHT_INDICES.has(j);
+        ctx.strokeStyle = (isLeftBone && !isRightBone) ? '#4ade80' :
+                          (isRightBone && !isLeftBone) ? '#f87171' : '#fbbf24';
+
+        // Dim non-selected side when filtering
+        if (!showBoth) {
+            const isSelected = (selectedSide === 'left' && isLeftBone) ||
+                               (selectedSide === 'right' && isRightBone);
+            ctx.globalAlpha = isSelected ? 1.0 : 0.15;
+        } else {
+            ctx.globalAlpha = 1.0;
         }
+
+        ctx.beginPath();
+        ctx.moveTo(a.x * w / 640, a.y * h / 360);
+        ctx.lineTo(b.x * w / 640, b.y * h / 360);
+        ctx.stroke();
     }
+    ctx.globalAlpha = 1.0;
 
     // Draw keypoints (filtered by selected side)
     for (let i = 0; i < keypoints.length; i++) {
         if (!isSideVisible(i)) continue;
         const kp = keypoints[i];
-        if (kp.confidence > 0.3) {
-            ctx.beginPath();
-            ctx.arc(kp.x * w / 640, kp.y * h / 360, 4, 0, Math.PI * 2);
-            ctx.fillStyle = LEFT_INDICES.has(i) ? '#4ade80' : '#f87171';
-            ctx.fill();
+        if (kp.confidence <= 0.3) continue;
+
+        const isLeft = LEFT_INDICES.has(i);
+        const isRight = RIGHT_INDICES.has(i);
+
+        if (!showBoth) {
+            const isSelected = (selectedSide === 'left' && isLeft) ||
+                               (selectedSide === 'right' && isRight);
+            ctx.globalAlpha = isSelected ? 1.0 : 0.15;
+        } else {
+            ctx.globalAlpha = 1.0;
         }
+
+        ctx.beginPath();
+        ctx.arc(kp.x * w / 640, kp.y * h / 360, 4, 0, Math.PI * 2);
+        ctx.fillStyle = isLeft ? '#4ade80' : isRight ? '#f87171' : '#38bdf8';
+        ctx.fill();
     }
+    ctx.globalAlpha = 1.0;
 }
 
 function initLiveView() {
@@ -529,6 +586,7 @@ function initLiveView() {
         };
         document.getElementById('compare-status').innerHTML =
             `<span style="color:var(--accent-green)">✓ A captured (${capturedFrameA.time})</span> — Move arm, then capture B`;
+        showToast('Frame A captured (resting)');
     });
 
     // Capture B
@@ -539,13 +597,15 @@ function initLiveView() {
             time: new Date().toLocaleTimeString()
         };
         document.getElementById('compare-status').innerHTML =
-            `<span style="color:var(--accent-green)">✓ A + B captured</span> — Click Compare`;
+            `<span style="color:var(--accent-green)">✓ A (${capturedFrameA?.time || '—'}) + B (${capturedFrameB.time}) captured</span> — Click Compare`;
+        showToast('Frame B captured (max ROM)');
     });
 
     // Compare
     document.getElementById('btn-compare')?.addEventListener('click', () => {
         if (!capturedFrameA || !capturedFrameB) {
             document.getElementById('compare-status').innerHTML = '<span style="color:var(--accent-red)">Capture both frames first</span>';
+            showToast('Capture both frames first');
             return;
         }
         comparisonActive = true;
@@ -554,6 +614,7 @@ function initLiveView() {
         document.getElementById('legend-a').style.display = '';
         document.getElementById('legend-b').style.display = '';
         document.getElementById('legend-arrow').style.display = '';
+        showToast('Comparison ready');
     });
 
     // Reset
@@ -569,6 +630,7 @@ function initLiveView() {
         if (skeleton3d) {
             skeleton3d.skeletonGroup.children.filter(c => c.userData?.comp).forEach(c => skeleton3d.skeletonGroup.remove(c));
         }
+        showToast('Reset complete');
     });
 
     // Init 3D skeleton
@@ -579,63 +641,6 @@ function initLiveView() {
         title: 'Abduction L/R',
         yLabel: 'Angle (°)',
         maxPoints: 120,
-    });
-
-
-
-    // Capture buttons
-    document.getElementById('btn-capture-a')?.addEventListener('click', () => {
-        capturedFrameA = {
-            keypoints: latestKeypoints ? JSON.parse(JSON.stringify(latestKeypoints)) : null,
-            angles: JSON.parse(JSON.stringify(latestAngles)),
-            time: new Date().toLocaleTimeString()
-        };
-        document.getElementById('compare-status').innerHTML =
-            `<span style="color:var(--accent-green)">A captured (${capturedFrameA.time})</span> — Move arm to max ROM, then capture B`;
-        showToast('Frame A captured (resting)');
-    });
-
-    document.getElementById('btn-capture-b')?.addEventListener('click', () => {
-        capturedFrameB = {
-            keypoints: latestKeypoints ? JSON.parse(JSON.stringify(latestKeypoints)) : null,
-            angles: JSON.parse(JSON.stringify(latestAngles)),
-            time: new Date().toLocaleTimeString()
-        };
-        document.getElementById('compare-status').innerHTML =
-            `<span style="color:var(--accent-green)">A (${capturedFrameA?.time || '—'}) + B (${capturedFrameB.time}) captured</span> — Click Compare`;
-        showToast('Frame B captured (max ROM)');
-    });
-
-    // Compare button
-    document.getElementById('btn-compare')?.addEventListener('click', () => {
-        if (!capturedFrameA || !capturedFrameB) {
-            showToast('Capture both frames first');
-            return;
-        }
-        comparisonActive = true;
-        showComparison(capturedFrameA, capturedFrameB, selectedSide);
-        // Update 3D skeleton to show both frames
-        if (skeleton3d) {
-            updateSkeleton3DComparison(capturedFrameA.keypoints, capturedFrameB.keypoints);
-        }
-    });
-
-    // Reset button
-    document.getElementById('btn-reset')?.addEventListener('click', () => {
-        capturedFrameA = null;
-        capturedFrameB = null;
-        comparisonActive = false;
-        document.getElementById('compare-result').innerHTML = '';
-        document.getElementById('compare-status').innerHTML =
-            'Select side → Capture A (resting) → Move arm → Capture B (max) → Compare';
-        // Reset 3D skeleton to live
-        if (skeleton3d) {
-            skeleton3d.skeletonGroup.children.forEach(c => {
-                if (c.userData?.frameA) c.visible = false;
-                if (c.userData?.frameB) c.visible = false;
-            });
-        }
-        showToast('Reset complete');
     });
 
     // Update chart title when movement selection changes
