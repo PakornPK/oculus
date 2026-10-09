@@ -243,6 +243,9 @@ function updateSkeleton3D(keypoints) {
 
 // Skeleton overlay state
 let latestKeypoints = null;
+let latestAngles = {};
+let capturedFrameA = null;
+let capturedFrameB = null;
 
 // Crop boundary state (user-adjustable)
 let cropRect = { x: 185, y: 0, w: 270, h: 360 };
@@ -416,6 +419,23 @@ function initLiveView() {
         maxPoints: 120,
     });
 
+    // Frame comparison buttons
+    document.getElementById('btn-capture-a')?.addEventListener('click', () => {
+        capturedFrameA = { angles: JSON.parse(JSON.stringify(latestAngles)), time: new Date().toLocaleTimeString() };
+        showToast('Frame A captured');
+    });
+    document.getElementById('btn-capture-b')?.addEventListener('click', () => {
+        capturedFrameB = { angles: JSON.parse(JSON.stringify(latestAngles)), time: new Date().toLocaleTimeString() };
+        showToast('Frame B captured');
+    });
+    document.getElementById('btn-compare')?.addEventListener('click', () => {
+        if (!capturedFrameA || !capturedFrameB) {
+            showToast('Capture both frames first');
+            return;
+        }
+        showComparison(capturedFrameA, capturedFrameB);
+    });
+
     // Update chart title when movement selection changes
     const chartSel = document.getElementById('chart-movement');
     if (chartSel) {
@@ -443,6 +463,7 @@ function initLiveView() {
     });
     ws.on('rom_angles', (data) => {
         updateLiveAngles(data);
+        latestAngles = data;
     });
     ws.on('video_frame', (data) => {
         if (data.frame) {
@@ -464,6 +485,43 @@ function initLiveView() {
         }
     });
     ws.connect();
+}
+
+function showComparison(a, b) {
+    const flatten = (data) => {
+        const flat = {};
+        const angles = data.angles?.angles || data.angles || {};
+        for (const [key, val] of Object.entries(angles)) {
+            if (typeof val === 'object' && val !== null) {
+                for (const [sub, v] of Object.entries(val)) {
+                    flat[`${key}_${sub}`] = v;
+                }
+            }
+        }
+        return flat;
+    };
+
+    const fa = flatten(a);
+    const fb = flatten(b);
+
+    let html = `<div style="display:grid;grid-template-columns:1fr auto 1fr;gap:4px;font-size:0.8rem">`;
+    html += `<div style="font-weight:600">Frame A (${a.time})</div><div></div><div style="font-weight:600">Frame B (${b.time})</div>`;
+
+    for (const mv of MOVEMENTS) {
+        const la = fa[`left_${mv}`] ?? 0;
+        const ra = fa[`right_${mv}`] ?? 0;
+        const lb = fb[`left_${mv}`] ?? 0;
+        const rb = fb[`right_${mv}`] ?? 0;
+        const diff = ((lb + rb) / 2 - (la + ra) / 2).toFixed(1);
+        const color = Math.abs(diff) > 10 ? 'var(--accent-red)' : 'var(--accent-green)';
+
+        html += `<div>${la.toFixed(1)}° / ${ra.toFixed(1)}°</div>`;
+        html += `<div style="color:${color}">${diff > 0 ? '+' : ''}${diff}°</div>`;
+        html += `<div>${lb.toFixed(1)}° / ${rb.toFixed(1)}°</div>`;
+    }
+
+    html += `</div>`;
+    document.getElementById('compare-result').innerHTML = html;
 }
 
 function updateLiveAngles(data) {

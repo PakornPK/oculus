@@ -157,6 +157,37 @@
                     </div>
                 </div>
 
+                <!-- Frame Comparison -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Frame Comparison</h2>
+                        <div style="display:flex;gap:0.5rem">
+                            <button id="btn-capture-a" class="btn" style="font-size:0.75rem;padding:4px 8px">Capture A</button>
+                            <button id="btn-capture-b" class="btn" style="font-size:0.75rem;padding:4px 8px">Capture B</button>
+                            <button id="btn-compare" class="btn" style="font-size:0.75rem;padding:4px 8px;background:var(--accent)">Compare</button>
+                        </div>
+                    </div>
+                    <div id="compare-result" style="font-size:0.8rem;color:var(--text-secondary)">Capture two frames to compare angles</div>
+                </div>
+
+                <!-- Reference Selector -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Angle Reference</h2>
+                    </div>
+                    <div style="display:flex;gap:1rem;align-items:center">
+                        <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.85rem">
+                            <input type="radio" name="ref" value="torso" checked> Torso vertical
+                        </label>
+                        <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.85rem">
+                            <input type="radio" name="ref" value="gravity"> Absolute vertical
+                        </label>
+                        <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.85rem">
+                            <input type="radio" name="ref" value="horizontal"> Horizontal
+                        </label>
+                    </div>
+                </div>
+
                 <!-- Real-time chart -->
                 <div class="card" style="flex:1;min-height:250px">
                     <div class="card-header">
