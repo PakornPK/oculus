@@ -329,18 +329,17 @@ function updateCompare3D(kpA, kpB) {
         return { shoulder, elbow, wrist, angle };
     };
 
-    // Draw Frame A (green) at origin
+    // Draw both arms overlaid at shoulder origin
     const armA = drawArm(kpA, matA, 'A');
-    // Draw Frame B (red) offset to the right
-    if (armA) {
-        const armB = drawArm(kpB, matB, 'B');
-        if (armB) {
-            // Offset B to the right
-            group.children.forEach(c => {
-                if (c.material === matB || (c.isLine && c.material.color?.getHex() === 0xf87171)) {
-                    c.position.x += 0.5;
-                }
-            });
+    const armB = drawArm(kpB, matB, 'B');
+
+    // Show angle label
+    if (armA && armB) {
+        const delta = armB.angle - armA.angle;
+        const label = document.getElementById('compare3d-rom-label');
+        if (label) {
+            label.innerHTML =
+                `A: ${armA.angle.toFixed(1)}° | B: ${armB.angle.toFixed(1)}° | ROM: ${delta > 0 ? '+' : ''}${delta.toFixed(1)}°`;
         }
     }
 
