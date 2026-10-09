@@ -3,6 +3,7 @@
 #include "oculus/camera/file_camera.hpp"
 #include "oculus/camera/camera_factory.hpp"
 #include "oculus/inference/onnx_inference_engine.hpp"
+#include "oculus/inference/person_detector.hpp"
 #include "oculus/rom/shoulder_rom_analyzer.hpp"
 #include "oculus/rom/session_manager.hpp"
 #include "oculus/rom/calibrator.hpp"
@@ -29,29 +30,42 @@ void print_usage() {
     std::cout << "Oculus v0.1.0 - Shoulder ROM Analysis\n"
               << "Usage: oculus [options]\n"
               << "  --video <path>    Run demo with video file\n"
-              << "  --model <path>    ONNX model path (e.g., models/rtmpose-m.onnx)\n"
+              << "  --model <path>    Pose model (e.g., models/rtmpose-m.onnx)\n"
+              << "  --det <path>      Person detector (e.g., models/yolox-s.onnx)\n"
               << "  --port <port>     Web server port (default: 8080)\n"
               << "  --diagnose        Run hardware diagnostics\n"
               << "  --help            Show this help\n";
 }
 
-int run_demo(const std::string& video_path, int port, const std::string& model_path) {
+int run_demo(const std::string& video_path, int port,
+             const std::string& model_path, const std::string& det_model_path) {
     spdlog::info("=== Oculus Demo Mode ===");
     spdlog::info("Video: {}", video_path);
-    spdlog::info("Model: {}", model_path.empty() ? "(simulated)" : model_path);
+    spdlog::info("Pose Model: {}", model_path.empty() ? "(simulated)" : model_path);
+    spdlog::info("Detector: {}", det_model_path.empty() ? "(center crop)" : det_model_path);
     spdlog::info("Port: {}", port);
 
     auto hw = HardwareDetector::detect();
     spdlog::info("Platform: {} {}", hw.arch, hw.cpu_model);
 
-    std::unique_ptr<InferenceEngine> engine;
+    std::unique_ptr<OnnxInferenceEngine> engine;
     if (!model_path.empty()) {
         engine = std::make_unique<OnnxInferenceEngine>();
         if (!engine->load_model(model_path)) {
-            spdlog::error("Failed to load model: {}", model_path);
+            spdlog::error("Failed to load pose model: {}", model_path);
             return 1;
         }
-        spdlog::info("Model loaded: {}", engine->backend_name());
+        spdlog::info("Pose model loaded: {}", engine->backend_name());
+    }
+
+    PersonDetector detector;
+    bool use_detection = false;
+    if (!det_model_path.empty()) {
+        if (detector.load_model(det_model_path)) {
+            spdlog::info("Person detector loaded");
+        } else {
+            spdlog::warn("Person detector failed to load, using center crop");
+        }
     }
 
     FileCamera camera(video_path);
@@ -62,6 +76,18 @@ int run_demo(const std::string& video_path, int port, const std::string& model_p
     if (!camera.open()) {
         spdlog::error("Failed to open video: {}", video_path);
         return 1;
+    }
+
+    // Test person detection on first frame
+    if (detector.is_loaded()) {
+        auto test_frame = camera.capture();
+        auto test_persons = detector.detect(test_frame, 0.3f);
+        if (!test_persons.empty()) {
+            use_detection = true;
+            spdlog::info("Person detector working, {} persons found", test_persons.size());
+        } else {
+            spdlog::warn("Person detector: no detections in test frame, using center crop");
+        }
     }
 
     auto cam_info = camera.info();
@@ -116,11 +142,28 @@ int run_demo(const std::string& video_path, int port, const std::string& model_p
 
             Pose pose;
             if (engine) {
-                PoseResult result = engine->infer(frame);
+                PoseResult result;
+                if (use_detection) {
+                    result = engine->infer_with_detection(frame, detector);
+                } else {
+                    result = engine->infer(frame);
+                }
                 if (!result.poses.empty()) {
                     pose = result.poses[0];
+                    if (frame_count % 30 == 0) {
+                        spdlog::info("Frame {}: person detected, {} keypoints",
+                                     frame_count, pose.keypoints.size());
+                        if (!pose.keypoints.empty()) {
+                            spdlog::info("  kp[5](L-shoulder): ({:.1f}, {:.1f}) conf={:.2f}",
+                                         pose.keypoints[5].x, pose.keypoints[5].y,
+                                         pose.keypoints[5].confidence);
+                        }
+                    }
                 } else {
                     pose.keypoints.resize(17);
+                    if (frame_count % 30 == 0) {
+                        spdlog::warn("Frame {}: no person detected", frame_count);
+                    }
                 }
             } else {
                 pose.keypoints.resize(17);
@@ -135,31 +178,6 @@ int run_demo(const std::string& video_path, int port, const std::string& model_p
                 pose.keypoints[12] = {360, 350, 0.9f};
                 pose.keypoints[3] = {260, 180, 0.8f};
                 pose.keypoints[4] = {380, 180, 0.8f};
-            }
-
-            // Scale keypoints from model input to video frame
-            // Account for center crop (person detection)
-            float model_aspect = 192.0f / 256.0f;
-            float frame_aspect = static_cast<float>(frame.width) / frame.height;
-            int crop_x = 0, crop_y = 0, crop_w = frame.width, crop_h = frame.height;
-
-            if (frame_aspect > model_aspect) {
-                crop_h = frame.height;
-                crop_w = static_cast<int>(crop_h * model_aspect);
-                crop_x = (frame.width - crop_w) / 2;
-                crop_y = 0;
-            } else {
-                crop_w = frame.width;
-                crop_h = static_cast<int>(crop_w / model_aspect);
-                crop_x = 0;
-                crop_y = (frame.height - crop_h) / 2;
-            }
-
-            float scale_x = static_cast<float>(crop_w) / 192.0f;
-            float scale_y = static_cast<float>(crop_h) / 256.0f;
-            for (auto& kp : pose.keypoints) {
-                kp.x = kp.x * scale_x + crop_x;
-                kp.y = kp.y * scale_y + crop_y;
             }
 
             rom_analyzer.update(pose);
@@ -304,6 +322,7 @@ int main(int argc, char* argv[]) {
 
     std::string video_path;
     std::string model_path;
+    std::string det_model_path;
     int port = 8080;
     bool diagnose = false;
 
@@ -313,6 +332,8 @@ int main(int argc, char* argv[]) {
             video_path = argv[++i];
         } else if (arg == "--model" && i + 1 < argc) {
             model_path = argv[++i];
+        } else if (arg == "--det" && i + 1 < argc) {
+            det_model_path = argv[++i];
         } else if (arg == "--port" && i + 1 < argc) {
             port = std::stoi(argv[++i]);
         } else if (arg == "--diagnose") {
@@ -324,7 +345,7 @@ int main(int argc, char* argv[]) {
     }
 
     if (diagnose) return run_diagnose();
-    if (!video_path.empty()) return run_demo(video_path, port, model_path);
+    if (!video_path.empty()) return run_demo(video_path, port, model_path, det_model_path);
 
     print_usage();
     return 0;

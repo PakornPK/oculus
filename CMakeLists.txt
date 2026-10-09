@@ -31,6 +31,7 @@ set(OCULUS_SOURCES
 if(TARGET onnxruntime::onnxruntime)
     list(APPEND OCULUS_SOURCES
         src/inference/onnx_inference_engine.cpp
+        src/inference/person_detector.cpp
         src/inference/models/rtmpose/rtmpose_preprocessor.cpp
         src/inference/models/rtmpose/rtmpose_postprocessor.cpp
     )
