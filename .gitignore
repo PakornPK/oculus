@@ -75,3 +75,4 @@ test-data/
 *.avi
 *.mov
 *.mkv
+*.onnx
