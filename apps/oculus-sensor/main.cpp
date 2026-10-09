@@ -280,8 +280,8 @@ int run_demo(const std::string& video_path, int port,
                 {MovementType::SHOULDER_DEPRESSION, "shoulder_depression"},
             };
             for (const auto& [type, name] : movements) {
-                all_angles["left_" + name] = rom_analyzer.get_rom(type, Side::LEFT).max_angle;
-                all_angles["right_" + name] = rom_analyzer.get_rom(type, Side::RIGHT).max_angle;
+                all_angles["left_" + name] = rom_analyzer.get_current_angle(type, Side::LEFT);
+                all_angles["right_" + name] = rom_analyzer.get_current_angle(type, Side::RIGHT);
             }
 
             // Text overlay on video
