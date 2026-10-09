@@ -17,6 +17,9 @@
 #include <chrono>
 #include <csignal>
 #include <fstream>
+#include <nlohmann/json.hpp>
+
+using json = nlohmann::json;
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 
@@ -262,6 +265,16 @@ int run_demo(const std::string& video_path, int port,
             server.push_frame(jpeg_buf);
 
             server.update_angles(all_angles);
+
+            // Send keypoints for 3D skeleton
+            json keypoints_json = json::array();
+            for (const auto& kp : pose.keypoints) {
+                keypoints_json.push_back({{"x", kp.x}, {"y", kp.y}, {"confidence", kp.confidence}});
+            }
+            json kp_msg;
+            kp_msg["type"] = "keypoints";
+            kp_msg["keypoints"] = keypoints_json;
+            server.broadcast_sse(kp_msg.dump());
 
             auto rom_result = rom_analyzer.get_result();
             server.update_result(rom_result);

@@ -102,6 +102,132 @@ async function loadSessionList() {
 
 let realtimeAngleChart = null;
 
+// 3D Skeleton state
+let skeleton3d = null;
+
+function initSkeleton3D() {
+    const container = document.getElementById('skeleton3d-container');
+    if (!container) return;
+
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0f172a);
+
+    const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1000);
+    camera.position.set(0, 1.2, 2.5);
+    camera.lookAt(0, 1, 0);
+
+    const renderer = new THREE.WebGLRenderer({
+        canvas: document.getElementById('skeleton3d-canvas'),
+        antialias: true
+    });
+    renderer.setSize(width, height);
+
+    // Grid
+    const grid = new THREE.GridHelper(4, 20, 0x334155, 0x1e293b);
+    scene.add(grid);
+
+    // Axes
+    const axes = new THREE.AxesHelper(1);
+    scene.add(axes);
+
+    // Skeleton group
+    const skeletonGroup = new THREE.Group();
+    scene.add(skeletonGroup);
+
+    // Create spheres for keypoints
+    const sphereGeo = new THREE.SphereGeometry(0.02, 16, 16);
+    const materials = {
+        left: new THREE.MeshBasicMaterial({ color: 0x4ade80 }),
+        right: new THREE.MeshBasicMaterial({ color: 0xf87171 }),
+        center: new THREE.MeshBasicMaterial({ color: 0x38bdf8 }),
+    };
+
+    const spheres = [];
+    for (let i = 0; i < 17; i++) {
+        const mat = (i % 2 === 1) ? materials.left :
+                    (i % 2 === 0 && i > 0) ? materials.right :
+                    materials.center;
+        const sphere = new THREE.Mesh(sphereGeo, mat);
+        sphere.visible = false;
+        skeletonGroup.add(sphere);
+        spheres.push(sphere);
+    }
+
+    // Bone connections
+    const bones = [
+        [0,1],[0,2],[1,3],[2,4],
+        [5,6],
+        [5,7],[7,9],
+        [6,8],[8,10],
+        [5,11],[6,12],
+        [11,12],
+        [11,13],[13,15],
+        [12,14],[14,16]
+    ];
+
+    const lineMaterial = new THREE.LineBasicMaterial({ color: 0xfbbf24, linewidth: 2 });
+    const lines = [];
+    for (const [i, j] of bones) {
+        const geometry = new THREE.BufferGeometry();
+        const line = new THREE.Line(geometry, lineMaterial);
+        line.visible = false;
+        skeletonGroup.add(line);
+        lines.push({ line, i, j });
+    }
+
+    // Animation loop
+    function animate() {
+        requestAnimationFrame(animate);
+        renderer.render(scene, camera);
+    }
+    animate();
+
+    skeleton3d = { scene, camera, renderer, spheres, lines, skeletonGroup };
+}
+
+function updateSkeleton3D(keypoints) {
+    if (!skeleton3d || !keypoints || keypoints.length < 17) return;
+
+    const { spheres, lines } = skeleton3d;
+    const scale = 0.003; // pixel to 3D unit
+    const centerY = 1.0;
+
+    // Update sphere positions (convert 2D to 3D)
+    for (let i = 0; i < 17; i++) {
+        const kp = keypoints[i];
+        if (kp.confidence > 0.3) {
+            // Map 2D (x, y) to 3D (x, y, z)
+            // x: left-right, y: up-down (inverted), z: depth (estimate)
+            spheres[i].position.set(
+                (kp.x - 320) * scale,
+                centerY - (kp.y - 180) * scale,
+                0
+            );
+            spheres[i].visible = true;
+        } else {
+            spheres[i].visible = false;
+        }
+    }
+
+    // Update bone lines
+    for (const { line, i, j } of lines) {
+        if (spheres[i].visible && spheres[j].visible) {
+            const positions = new Float32Array([
+                spheres[i].position.x, spheres[i].position.y, spheres[i].position.z,
+                spheres[j].position.x, spheres[j].position.y, spheres[j].position.z,
+            ]);
+            line.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            line.geometry.attributes.position.needsUpdate = true;
+            line.visible = true;
+        } else {
+            line.visible = false;
+        }
+    }
+}
+
 function initLiveView() {
     const canvas = document.getElementById('video-canvas');
     const placeholder = document.getElementById('video-placeholder');
@@ -114,6 +240,9 @@ function initLiveView() {
         ctx.drawImage(frameImg, 0, 0);
         if (placeholder) placeholder.style.display = 'none';
     };
+
+    // Init 3D skeleton
+    initSkeleton3D();
 
     // ROM angles chart
     realtimeAngleChart = ChartUtils.createRealtimeChart('angle-chart', {
@@ -138,9 +267,13 @@ function initLiveView() {
             frameImg.src = 'data:image/jpeg;base64,' + data.frame;
         }
     });
+    ws.on('keypoints', (data) => {
+        if (data.keypoints) updateSkeleton3D(data.keypoints);
+    });
     ws.on('data', (data) => {
         if (data.angles) updateLiveAngles(data);
         if (data.frame) frameImg.src = 'data:image/jpeg;base64,' + data.frame;
+        if (data.keypoints) updateSkeleton3D(data.keypoints);
     });
     ws.connect();
 }

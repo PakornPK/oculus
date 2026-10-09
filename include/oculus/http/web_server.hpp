@@ -30,6 +30,7 @@ public:
     void update_result(const ShoulderRomResult& result);
     void increment_frame_count();
     void push_frame(const std::vector<uint8_t>& jpeg_data);
+    void broadcast_sse(const std::string& data);
 
 private:
     struct Impl;

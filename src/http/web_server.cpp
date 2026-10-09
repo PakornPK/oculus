@@ -337,6 +337,10 @@ void WebServer::increment_frame_count() {
     impl_->total_frames++;
 }
 
+void WebServer::broadcast_sse(const std::string& data) {
+    impl_->broadcast_sse(data);
+}
+
 void WebServer::push_frame(const std::vector<uint8_t>& jpeg_data) {
     {
         std::lock_guard<std::mutex> lock(impl_->frame_mutex);

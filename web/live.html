@@ -6,6 +6,7 @@
     <title>Oculus — Live View</title>
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
     <nav>
@@ -29,7 +30,7 @@
             <p>Real-time pose estimation and shoulder angle tracking</p>
         </div>
 
-        <div class="grid grid-2">
+        <div class="grid grid-3">
             <!-- Video + pose overlay -->
             <div class="card">
                 <div class="card-header">
@@ -42,6 +43,17 @@
                         <p style="font-size:2rem;margin-bottom:0.5rem">📹</p>
                         <p>Loading video stream...</p>
                     </div>
+                </div>
+            </div>
+
+            <!-- 3D Skeleton -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>3D Skeleton</h2>
+                    <span class="badge">3D</span>
+                </div>
+                <div id="skeleton3d-container" style="width:100%;height:400px;background:#0f172a;border-radius:8px;position:relative">
+                    <canvas id="skeleton3d-canvas" style="width:100%;height:100%"></canvas>
                 </div>
             </div>
 
