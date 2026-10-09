@@ -37,7 +37,10 @@
             <div class="card">
                 <div class="card-header">
                     <h2>Camera Feed</h2>
-                    <span class="badge">LIVE</span>
+                    <div style="display:flex;align-items:center;gap:0.5rem">
+                        <button id="btn-start-stop" class="btn" style="padding:4px 12px;font-size:0.8rem;background:var(--accent-green);color:#000">⏸ Stop</button>
+                        <span id="live-badge" class="badge">LIVE</span>
+                    </div>
                 </div>
                 <div class="video-container">
                     <canvas id="video-canvas" style="width:100%;height:100%;object-fit:contain"></canvas>

@@ -465,6 +465,7 @@ let capturedFrameA = null;  // { keypoints, angles, time }
 let capturedFrameB = null;
 let selectedSide = 'left';  // 'left', 'right', or 'both'
 let comparisonActive = false;
+let isLive = true;
 
 
 
@@ -808,6 +809,24 @@ function initLiveView() {
         showToast('Reset complete');
     });
 
+    // Start/Stop toggle
+    const btnStartStop = document.getElementById('btn-start-stop');
+    const liveBadge = document.getElementById('live-badge');
+    btnStartStop?.addEventListener('click', () => {
+        isLive = !isLive;
+        if (isLive) {
+            btnStartStop.textContent = '⏸ Stop';
+            btnStartStop.style.background = 'var(--accent-green)';
+            if (liveBadge) { liveBadge.textContent = 'LIVE'; liveBadge.style.background = ''; }
+            showToast('Live resumed');
+        } else {
+            btnStartStop.textContent = '▶ Start';
+            btnStartStop.style.background = 'var(--accent-orange)';
+            if (liveBadge) { liveBadge.textContent = 'PAUSED'; liveBadge.style.background = 'var(--accent-orange)'; }
+            showToast('Live paused');
+        }
+    });
+
     // Keyboard shortcuts for clinical workflow
     document.addEventListener('keydown', (e) => {
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
@@ -869,11 +888,13 @@ function initLiveView() {
         latestAngles = data;
     });
     ws.on('video_frame', (data) => {
+        if (!isLive) return;
         if (data.frame) {
             frameImg.src = 'data:image/jpeg;base64,' + data.frame;
         }
     });
     ws.on('keypoints', (data) => {
+        if (!isLive) return;
         if (data.keypoints) {
             latestKeypoints = data.keypoints;
             if (data.frame_width) frameWidth = data.frame_width;
@@ -881,7 +902,13 @@ function initLiveView() {
             updateSkeleton3D(data.keypoints);
         }
     });
+    ws.on('rom_angles', (data) => {
+        if (!isLive) return;
+        updateLiveAngles(data);
+        latestAngles = data;
+    });
     ws.on('data', (data) => {
+        if (!isLive) return;
         if (data.angles) updateLiveAngles(data);
         if (data.frame) frameImg.src = 'data:image/jpeg;base64,' + data.frame;
         if (data.keypoints) {
