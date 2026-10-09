@@ -1,14 +1,26 @@
 :root {
-    --bg-primary: #0f172a;
-    --bg-secondary: #1e293b;
-    --bg-card: #334155;
-    --text-primary: #f1f5f9;
-    --text-secondary: #94a3b8;
-    --accent: #38bdf8;
-    --accent-green: #4ade80;
-    --accent-orange: #fb923c;
-    --accent-red: #f87171;
-    --border: #475569;
+    /* Medical-grade dark theme (IEC 62366, WCAG AA) */
+    --bg-primary: #0F1419;
+    --bg-secondary: #1A2332;
+    --bg-card: #243044;
+    --text-primary: #F0F4F8;      /* 16.2:1 contrast ✅ AAA */
+    --text-secondary: #A8B8CC;    /* 7.8:1 contrast ✅ AAA */
+    --text-tertiary: #6B7F99;     /* 4.5:1 contrast ✅ AA */
+
+    /* Semantic colors (IEC 60601-1-8) */
+    --accent: #5DADE2;            /* Info/Primary */
+    --accent-green: #2ECC71;      /* Normal/Success */
+    --accent-orange: #F5A623;     /* Warning */
+    --accent-red: #E74C3C;        /* Critical/Error */
+
+    /* Body side colors (colorblind-safe, blue-orange pair) */
+    --body-left: #4FC3F7;         /* Left: Blue (8.4:1 ✅ AAA) */
+    --body-right: #FFB74D;        /* Right: Orange (10.2:1 ✅ AAA) */
+    --body-both: #38bdf8;         /* Both: Cyan */
+
+    /* Borders & Radius */
+    --border: #2C3E50;
+    --border-strong: #4A6785;
     --radius: 8px;
 }
 
