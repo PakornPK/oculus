@@ -255,89 +255,108 @@ function initCompare3D() {
 function updateCompare3D(kpA, kpB) {
     if (!compare3d || !kpA || !kpB) return;
 
-    const { group, geo, matA, matB, lineMatA, lineMatB, arrowMat, bones } = compare3d;
-    const scale = 0.003;
-    const centerY = 1.0;
+    const { group, geo, matA, matB, arrowMat } = compare3d;
+    const scale = 0.004;
 
-    // Clear previous comparison objects
     while (group.children.length > 0) group.remove(group.children[0]);
 
-    // Depth estimation helper
-    const estimateZ = (kp, i, refX) => {
-        const s = scale;
-        if (i === 0) return s * 0.8;
-        if (i === 1 || i === 2) return s * 0.7;
-        if (i === 3 || i === 4) return s * 0.5;
-        if (i === 5 || i === 6) return 0;
-        if (i === 7 || i === 8) return Math.abs(kp[i].x - refX) * s * 0.4;
-        if (i === 9 || i === 10) return Math.abs(kp[i].x - refX) * s * 0.6;
-        if (i === 11 || i === 12) return 0;
-        if (i === 13 || i === 14) return -s * 0.1;
-        if (i === 15 || i === 16) return -s * 0.2;
-        return 0;
+    // Get shoulder, elbow, wrist for selected side
+    const si = selectedSide === 'right' ? 6 : 5;  // shoulder
+    const ei = selectedSide === 'right' ? 8 : 7;  // elbow
+    const wi = selectedSide === 'right' ? 10 : 9; // wrist
+
+    const drawArm = (kp, mat, label) => {
+        const s = kp[si], e = kp[ei], w = kp[wi];
+        if (!s || !e || !w || s.confidence < 0.3) return null;
+
+        // Origin at shoulder, arm extends from there
+        const shoulder = new THREE.Vector3(0, 0, 0);
+        const elbow = new THREE.Vector3(
+            (e.x - s.x) * scale,
+            -(e.y - s.y) * scale,
+            0
+        );
+        const wrist = new THREE.Vector3(
+            (w.x - s.x) * scale,
+            -(w.y - s.y) * scale,
+            0
+        );
+
+        // Keypoints
+        for (const p of [shoulder, elbow, wrist]) {
+            const sp = new THREE.Mesh(geo, mat);
+            sp.position.copy(p);
+            group.add(sp);
+        }
+
+        // Bones (shoulder→elbow→wrist)
+        const boneMat = new THREE.LineBasicMaterial({ color: mat.color.getHex() });
+        for (const [a, b] of [[shoulder, elbow], [elbow, wrist]]) {
+            const lineGeo = new THREE.BufferGeometry().setFromPoints([a, b]);
+            group.add(new THREE.Line(lineGeo, boneMat));
+        }
+
+        // Angle arc at shoulder
+        const v1 = elbow.clone().sub(shoulder).normalize();
+        const v2 = new THREE.Vector3(0, -1, 0); // vertical down
+        const angle = Math.acos(Math.max(-1, Math.min(1, v1.dot(v2)))) * 180 / Math.PI;
+
+        // Draw arc
+        const arcMat = new THREE.LineBasicMaterial({ color: 0xfbbf24 });
+        const arcPoints = [];
+        const segments = 20;
+        const radius = 0.15;
+        const startAngle = Math.atan2(-v2.y, -v2.x);
+        const endAngle = Math.atan2(-v1.y, -v1.x);
+        for (let i = 0; i <= segments; i++) {
+            const t = i / segments;
+            const a = startAngle + (endAngle - startAngle) * t;
+            arcPoints.push(new THREE.Vector3(
+                Math.cos(a) * radius,
+                Math.sin(a) * radius,
+                0
+            ));
+        }
+        const arcGeo = new THREE.BufferGeometry().setFromPoints(arcPoints);
+        group.add(new THREE.Line(arcGeo, arcMat));
+
+        // Reference line (vertical down from shoulder)
+        const refEnd = new THREE.Vector3(0, -0.3, 0);
+        const refGeo = new THREE.BufferGeometry().setFromPoints([shoulder, refEnd]);
+        const refMat = new THREE.LineBasicMaterial({ color: 0x475569, transparent: true, opacity: 0.5 });
+        group.add(new THREE.Line(refGeo, refMat));
+
+        return { shoulder, elbow, wrist, angle };
     };
 
-    const drawSkeleton = (kp, mat, lineMat, offsetX) => {
-        const spheres = [];
-        const refX = kp[6]?.x || 320;
-        for (let i = 0; i < 17; i++) {
-            if (kp[i]?.confidence > 0.3) {
-                const s = new THREE.Mesh(geo, mat);
-                s.position.set(
-                    (kp[i].x - 320) * scale + offsetX,
-                    centerY - (kp[i].y - 180) * scale,
-                    estimateZ(kp, i, refX)
-                );
-                group.add(s);
-                spheres[i] = s;
-            }
-        }
-        for (const [i, j] of bones) {
-            if (spheres[i] && spheres[j]) {
-                const pts = [spheres[i].position.clone(), spheres[j].position.clone()];
-                const lineGeo = new THREE.BufferGeometry().setFromPoints(pts);
-                group.add(new THREE.Line(lineGeo, lineMat));
-            }
-        }
-        return spheres;
-    };
-
-    // Draw Frame A on left, Frame B on right (side by side)
-    const spheresA = drawSkeleton(kpA, matA, lineMatA, -0.5);
-    const spheresB = drawSkeleton(kpB, matB, lineMatB, 0.5);
-
-    // Draw movement arrows for selected side's key joints
-    const sideJointIndices = selectedSide === 'right' ? [6, 8, 10] : [5, 7, 9];
-    for (const i of sideJointIndices) {
-        if (spheresA[i] && spheresB[i]) {
-            const pts = [spheresA[i].position.clone(), spheresB[i].position.clone()];
-            const lineGeo = new THREE.BufferGeometry().setFromPoints(pts);
-            group.add(new THREE.Line(lineGeo, arrowMat));
+    // Draw Frame A (green) at origin
+    const armA = drawArm(kpA, matA, 'A');
+    // Draw Frame B (red) offset to the right
+    if (armA) {
+        const armB = drawArm(kpB, matB, 'B');
+        if (armB) {
+            // Offset B to the right
+            group.children.forEach(c => {
+                if (c.material === matB || (c.isLine && c.material.color?.getHex() === 0xf87171)) {
+                    c.position.x += 0.5;
+                }
+            });
         }
     }
 
-    // Show ROM delta as text overlay
+    // Show angle values
     const romLabel = document.getElementById('compare3d-rom-label');
-    if (romLabel) {
-        const flattenAngles = (data) => {
-            const flat = {};
-            const angles = data?.angles?.angles || data?.angles || {};
-            for (const [key, val] of Object.entries(angles)) {
-                if (typeof val === 'object' && val !== null) {
-                    for (const [sub, v] of Object.entries(val)) {
-                        flat[`${key}_${sub}`] = v;
-                    }
-                }
-            }
+    if (romLabel && armA) {
+        const delta = armB ? armB.angle - armA.angle : 0;
+        romLabel.innerHTML = `
+            <div>A: <strong>${armA.angle.toFixed(1)}°</strong></div>
+            ${armB ? `<div>B: <strong>${armB.angle.toFixed(1)}°</strong></div>` : ''}
+            ${armB ? `<div>ROM: <strong style="color:var(--accent-orange)">${delta > 0 ? '+' : ''}${delta.toFixed(1)}°</strong></div>` : ''}
+        `;
+    }
             return flat;
         };
         const fa = flattenAngles(capturedFrameA);
-        const fb = flattenAngles(capturedFrameB);
-        const romA = fa[`${selectedSide}_abduction`] ?? 0;
-        const romB = fb[`${selectedSide}_abduction`] ?? 0;
-        const diff = romB - romA;
-        romLabel.innerHTML = `<strong>${selectedSide.toUpperCase()}</strong> Abduction: ${romA.toFixed(0)}° → ${romB.toFixed(0)}° <span style="color:${Math.abs(diff) > 30 ? 'var(--accent-red)' : Math.abs(diff) > 10 ? 'var(--accent-orange)' : 'var(--accent-green)'}">(${diff > 0 ? '+' : ''}${diff.toFixed(1)}°)</span>`;
-    }
 }
 
 function swapToCompare3D() {
