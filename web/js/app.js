@@ -131,8 +131,8 @@ function initSkeleton3D() {
     controls.dampingFactor = 0.05;
     controls.target.set(0, 1, 0);
 
-    // Grid (subtle)
-    const grid = new THREE.GridHelper(2, 10, 0x1e293b, 0x0f172a);
+    // Grid
+    const grid = new THREE.GridHelper(3, 15, 0x475569, 0x1e293b);
     scene.add(grid);
 
     // Skeleton group
@@ -140,7 +140,7 @@ function initSkeleton3D() {
     scene.add(skeletonGroup);
 
     // Create spheres for keypoints
-    const sphereGeo = new THREE.SphereGeometry(0.008, 8, 8);
+    const sphereGeo = new THREE.SphereGeometry(0.015, 12, 12);
     const materials = {
         left: new THREE.MeshBasicMaterial({ color: 0x4ade80 }),
         right: new THREE.MeshBasicMaterial({ color: 0xf87171 }),
@@ -170,7 +170,7 @@ function initSkeleton3D() {
         [12,14],[14,16]
     ];
 
-    const lineMaterial = new THREE.LineBasicMaterial({ color: 0x475569 });
+    const lineMaterial = new THREE.LineBasicMaterial({ color: 0xfbbf24, linewidth: 3 });
     const lines = [];
     for (const [i, j] of bones) {
         const geometry = new THREE.BufferGeometry();
@@ -244,6 +244,86 @@ function updateSkeleton3D(keypoints) {
 // Skeleton overlay state
 let latestKeypoints = null;
 
+// Crop boundary state (user-adjustable)
+let cropRect = { x: 185, y: 0, w: 270, h: 360 };
+let cropDragging = false;
+let cropResizing = false;
+let cropDragStart = { x: 0, y: 0 };
+let cropResizeHandle = null; // 'tl','tr','bl','br','move'
+
+function initCropEditor(canvas) {
+    canvas.addEventListener('mousedown', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const mx = (e.clientX - rect.left) * canvas.width / rect.width;
+        const my = (e.clientY - rect.top) * canvas.height / rect.height;
+
+        // Check resize handles (8px corners)
+        const handleSize = 8;
+        if (Math.abs(mx - cropRect.x) < handleSize && Math.abs(my - cropRect.y) < handleSize) {
+            cropResizing = true; cropResizeHandle = 'tl';
+        } else if (Math.abs(mx - (cropRect.x + cropRect.w)) < handleSize && Math.abs(my - cropRect.y) < handleSize) {
+            cropResizing = true; cropResizeHandle = 'tr';
+        } else if (Math.abs(mx - cropRect.x) < handleSize && Math.abs(my - (cropRect.y + cropRect.h)) < handleSize) {
+            cropResizing = true; cropResizeHandle = 'bl';
+        } else if (Math.abs(mx - (cropRect.x + cropRect.w)) < handleSize && Math.abs(my - (cropRect.y + cropRect.h)) < handleSize) {
+            cropResizing = true; cropResizeHandle = 'br';
+        } else if (mx >= cropRect.x && mx <= cropRect.x + cropRect.w &&
+                   my >= cropRect.y && my <= cropRect.y + cropRect.h) {
+            cropDragging = true;
+        }
+        cropDragStart = { x: mx, y: my };
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const mx = (e.clientX - rect.left) * canvas.width / rect.width;
+        const my = (e.clientY - rect.top) * canvas.height / rect.height;
+        const dx = mx - cropDragStart.x;
+        const dy = my - cropDragStart.y;
+
+        if (cropDragging) {
+            cropRect.x = Math.max(0, Math.min(canvas.width - cropRect.w, cropRect.x + dx));
+            cropRect.y = Math.max(0, Math.min(canvas.height - cropRect.h, cropRect.y + dy));
+            cropDragStart = { x: mx, y: my };
+        } else if (cropResizing) {
+            if (cropResizeHandle === 'br') {
+                cropRect.w = Math.max(50, cropRect.w + dx);
+                cropRect.h = Math.max(50, cropRect.h + dy);
+            } else if (cropResizeHandle === 'bl') {
+                cropRect.x += dx; cropRect.w = Math.max(50, cropRect.w - dx);
+                cropRect.h = Math.max(50, cropRect.h + dy);
+            } else if (cropResizeHandle === 'tr') {
+                cropRect.w = Math.max(50, cropRect.w + dx);
+                cropRect.y += dy; cropRect.h = Math.max(50, cropRect.h - dy);
+            } else if (cropResizeHandle === 'tl') {
+                cropRect.x += dx; cropRect.w = Math.max(50, cropRect.w - dx);
+                cropRect.y += dy; cropRect.h = Math.max(50, cropRect.h - dy);
+            }
+            cropDragStart = { x: mx, y: my };
+        }
+
+        // Send crop update to server
+        if (cropDragging || cropResizing) {
+            sendCropUpdate();
+        }
+    });
+
+    canvas.addEventListener('mouseup', () => {
+        cropDragging = false;
+        cropResizing = false;
+        cropResizeHandle = null;
+    });
+}
+
+function sendCropUpdate() {
+    // Send crop rect to server via SSE or fetch
+    fetch('/api/v1/camera/crop', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cropRect)
+    }).catch(() => {});
+}
+
 const SKELETON_BONES = [
     [0,1],[0,2],[1,3],[2,4],
     [5,6],
@@ -255,8 +335,38 @@ const SKELETON_BONES = [
     [12,14],[14,16]
 ];
 
+function drawCropBoundary(ctx, w, h) {
+    // Scale crop rect to canvas size
+    const sx = w / 640, sy = h / 360;
+    const cx = cropRect.x * sx, cy = cropRect.y * sy;
+    const cw = cropRect.w * sx, ch = cropRect.h * sy;
+
+    // Dashed boundary
+    ctx.strokeStyle = '#fbbf24';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 4]);
+    ctx.strokeRect(cx, cy, cw, ch);
+    ctx.setLineDash([]);
+
+    // Corner handles
+    const hs = 6;
+    ctx.fillStyle = '#fbbf24';
+    ctx.fillRect(cx - hs/2, cy - hs/2, hs, hs);           // tl
+    ctx.fillRect(cx + cw - hs/2, cy - hs/2, hs, hs);       // tr
+    ctx.fillRect(cx - hs/2, cy + ch - hs/2, hs, hs);       // bl
+    ctx.fillRect(cx + cw - hs/2, cy + ch - hs/2, hs, hs);  // br
+
+    // Label
+    ctx.fillStyle = '#fbbf24';
+    ctx.font = '10px monospace';
+    ctx.fillText(`crop: ${Math.round(cropRect.x)},${Math.round(cropRect.y)} ${Math.round(cropRect.w)}x${Math.round(cropRect.h)}`, cx + 2, cy - 4);
+}
+
 function drawSkeletonOverlay(ctx, keypoints, w, h) {
     if (!keypoints || keypoints.length < 17) return;
+
+    // Draw crop boundary
+    drawCropBoundary(ctx, w, h);
 
     // Draw bones
     ctx.lineWidth = 3;
@@ -298,6 +408,9 @@ function initLiveView() {
         drawSkeletonOverlay(ctx, latestKeypoints, canvas.width, canvas.height);
         if (placeholder) placeholder.style.display = 'none';
     };
+
+    // Init crop editor (drag/resize crop boundary)
+    initCropEditor(canvas);
 
     // Init 3D skeleton
     initSkeleton3D();
