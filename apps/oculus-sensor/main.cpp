@@ -298,7 +298,7 @@ int run_demo(const std::string& video_path, int port,
 
             server.update_angles(all_angles);
 
-            // Send keypoints for 3D skeleton
+            // Send keypoints + frame dimensions for accurate overlay
             json keypoints_json = json::array();
             for (const auto& kp : pose.keypoints) {
                 keypoints_json.push_back({{"x", kp.x}, {"y", kp.y}, {"confidence", kp.confidence}});
@@ -306,6 +306,8 @@ int run_demo(const std::string& video_path, int port,
             json kp_msg;
             kp_msg["type"] = "keypoints";
             kp_msg["keypoints"] = keypoints_json;
+            kp_msg["frame_width"] = frame.width;
+            kp_msg["frame_height"] = frame.height;
             server.broadcast_sse(kp_msg.dump());
 
             auto rom_result = rom_analyzer.get_result();

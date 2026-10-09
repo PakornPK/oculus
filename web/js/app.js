@@ -632,8 +632,8 @@ function drawSkeletonOverlay(ctx, keypoints, w, h) {
         }
 
         ctx.beginPath();
-        ctx.moveTo(a.x * w / 640, a.y * h / 360);
-        ctx.lineTo(b.x * w / 640, b.y * h / 360);
+        ctx.moveTo(a.x * w / frameWidth, a.y * h / frameHeight);
+        ctx.lineTo(b.x * w / frameWidth, b.y * h / frameHeight);
         ctx.stroke();
     }
     ctx.globalAlpha = 1.0;
@@ -656,7 +656,7 @@ function drawSkeletonOverlay(ctx, keypoints, w, h) {
         }
 
         ctx.beginPath();
-        ctx.arc(kp.x * w / 640, kp.y * h / 360, 4, 0, Math.PI * 2);
+        ctx.arc(kp.x * w / frameWidth, kp.y * h / frameHeight, 5, 0, Math.PI * 2);
         ctx.fillStyle = isLeft ? '#4ade80' : isRight ? '#f87171' : '#38bdf8';
         ctx.fill();
     }
@@ -876,6 +876,8 @@ function initLiveView() {
     ws.on('keypoints', (data) => {
         if (data.keypoints) {
             latestKeypoints = data.keypoints;
+            if (data.frame_width) frameWidth = data.frame_width;
+            if (data.frame_height) frameHeight = data.frame_height;
             updateSkeleton3D(data.keypoints);
         }
     });
