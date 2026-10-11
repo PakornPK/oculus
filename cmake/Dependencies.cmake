@@ -38,7 +38,7 @@ if(BUILD_TESTS)
 endif()
 
 # ONNX Runtime — platform-specific pre-built binary
-set(ORT_VERSION "1.20.1")
+set(ORT_VERSION "1.31.0")
 if(APPLE AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
     set(ORT_URL "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-osx-arm64-${ORT_VERSION}.tgz")
 elseif(UNIX AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
@@ -92,6 +92,13 @@ set(BUILD_opencv_objdetect OFF CACHE BOOL "" FORCE)
 set(BUILD_opencv_ml OFF CACHE BOOL "" FORCE)
 set(BUILD_opencv_dnn OFF CACHE BOOL "" FORCE)
 set(BUILD_opencv_gapi OFF CACHE BOOL "" FORCE)
+
+# TFLite C++ runtime — pre-built from Google
+if(APPLE AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+    set(TFLITE_VERSION "2.16.2")
+    set(TFLITE_URL "https://github.com/nicktrandafil/tflite-cpp-prebuilt/releases/download/v${TFLITE_VERSION}/tflite-cpp-prebuilt-${TFLITE_VERSION}-macos-arm64.tar.gz")
+    # Fallback: build from TFLite source via CMake
+endif()
 
 message(STATUS "Fetching dependencies...")
 FetchContent_MakeAvailable(nlohmann_json spdlog yaml-cpp httplib opencv)

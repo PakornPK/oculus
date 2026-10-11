@@ -45,7 +45,7 @@
             </div>
         </div>
 
-        <div class="grid grid-3" style="margin-bottom:1.5rem">
+        <div class="grid grid-3" style="margin-bottom:1.5rem;grid-template-columns:1.2fr 1.2fr 0.8fr">
             <!-- Video + skeleton overlay -->
             <div class="card">
                 <div class="card-header">
@@ -57,7 +57,7 @@
                 </div>
                 <div class="video-container">
                     <canvas id="video-canvas" style="width:100%;height:100%;object-fit:contain"></canvas>
-                    <div id="side-indicator" class="side-indicator" style="color:#4ade80">● LEFT</div>
+                    <div id="side-indicator" class="side-indicator" style="color:#e2e8f0">● BOTH</div>
                     <div id="video-placeholder" class="placeholder">
                         <p style="font-size:2rem;margin-bottom:0.5rem">📹</p>
                         <p>Loading video stream...</p>
@@ -76,11 +76,11 @@
                     </div>
                 </div>
                 <!-- Live 3D view -->
-                <div id="skeleton3d-container" style="width:100%;height:400px;background:#0f172a;border-radius:8px">
+                <div id="skeleton3d-container" style="width:100%;height:500px;background:#0f172a;border-radius:8px">
                     <canvas id="skeleton3d-canvas" style="width:100%;height:100%"></canvas>
                 </div>
                 <!-- Comparison 3D view (hidden by default) -->
-                <div id="compare3d-container" style="display:none;width:100%;height:400px;background:#0f1419;border-radius:8px;position:relative">
+                <div id="compare3d-container" style="display:none;width:100%;height:500px;background:#0f1419;border-radius:8px;position:relative">
                     <canvas id="compare3d-canvas" style="width:100%;height:100%"></canvas>
                     <div id="compare3d-rom-label" style="position:absolute;top:8px;right:12px;background:rgba(0,0,0,0.7);padding:4px 8px;border-radius:4px;font-size:0.75rem;color:var(--accent-orange)"></div>
                 </div>
@@ -92,9 +92,9 @@
                 <div class="card" style="padding:0.75rem">
                     <div style="font-size:0.7rem;color:var(--text-secondary);margin-bottom:0.35rem;text-transform:uppercase;letter-spacing:0.05em">1. Select Side</div>
                     <div style="display:flex;gap:0.5rem">
-                        <button id="btn-side-left" class="btn active" style="flex:1;padding:8px;font-size:0.85rem"><span style="color:#4FC3F7">●</span> Left</button>
-                        <button id="btn-side-right" class="btn" style="flex:1;padding:8px;font-size:0.85rem"><span style="color:#FFB74D">●</span> Right</button>
-                        <button id="btn-side-both" class="btn" style="flex:1;padding:8px;font-size:0.85rem"><span style="color:#38bdf8">●</span> Both</button>
+                        <button id="btn-side-left" class="btn" style="flex:1;padding:8px;font-size:0.85rem"><span style="color:#ef4444">●</span> Left</button>
+                        <button id="btn-side-right" class="btn" style="flex:1;padding:8px;font-size:0.85rem"><span style="color:#f97316">●</span> Right</button>
+                        <button id="btn-side-both" class="btn active" style="flex:1;padding:8px;font-size:0.85rem"><span style="color:#e2e8f0">●</span> Both</button>
                     </div>
                 </div>
 

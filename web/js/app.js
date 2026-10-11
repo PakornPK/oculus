@@ -19,7 +19,7 @@ let latestKeypoints = null;
 let latestAngles = null;
 let capturedFrameA = null;
 let capturedFrameB = null;
-let selectedSide = 'left';
+let selectedSide = 'both';
 let isLive = true;
 let frameWidth = 640;
 let frameHeight = 360;
@@ -288,7 +288,7 @@ function drawSkeletonOverlay(ctx, keypoints, w, h) {
         if (a.confidence <= 0.3 || b.confidence <= 0.3) continue;
 
         const isLeft = LEFT_INDICES.has(i);
-        ctx.strokeStyle = isLeft ? '#4FC3F7' : '#FFB74D';
+        ctx.strokeStyle = isLeft ? '#ef4444' : '#f97316';  // red / orange
         ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.moveTo(a.x * sx, a.y * sy);
@@ -327,7 +327,7 @@ function drawSkeletonOverlay(ctx, keypoints, w, h) {
 
         ctx.beginPath();
         ctx.arc(kp.x * sx, kp.y * sy, 5, 0, Math.PI * 2);
-        ctx.fillStyle = LEFT_INDICES.has(i) ? '#4FC3F7' : '#FFB74D';
+        ctx.fillStyle = LEFT_INDICES.has(i) ? '#ef4444' : '#f97316';  // red / orange
         ctx.fill();
     }
 }
@@ -366,7 +366,7 @@ function initLiveView() {
         if (btn) btn.classList.add('active');
         const ind = document.getElementById('side-indicator');
         if (ind) {
-            const colors = { left: '#4FC3F7', right: '#FFB74D', both: '#38bdf8' };
+            const colors = { left: '#ef4444', right: '#f97316', both: '#e2e8f0' };
             ind.innerHTML = `<span style="color:${colors[side]}">●</span> ${side.toUpperCase()}`;
         }
     }

@@ -16,6 +16,7 @@ set(OCULUS_SOURCES
     src/core/pose.cpp
     src/core/hardware_detector.cpp
     src/camera/file_camera.cpp
+    src/camera/opencv_camera.cpp
     src/camera/camera_factory.cpp
     src/rom/joint_angle_calculator.cpp
     src/rom/shoulder_rom_analyzer.cpp
@@ -36,10 +37,12 @@ set(OCULUS_SOURCES
 
 if(TARGET onnxruntime::onnxruntime)
     list(APPEND OCULUS_SOURCES
+        src/inference/inference_backend.cpp
         src/inference/onnx_inference_engine.cpp
         src/inference/person_detector.cpp
         src/inference/models/rtmpose/rtmpose_preprocessor.cpp
         src/inference/models/rtmpose/rtmpose_postprocessor.cpp
+        src/inference/mediapipe_engine.cpp
     )
 endif()
 

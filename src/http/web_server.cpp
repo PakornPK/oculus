@@ -341,6 +341,10 @@ void WebServer::broadcast_sse(const std::string& data) {
     impl_->broadcast_sse(data);
 }
 
+bool WebServer::has_clients() const {
+    return !impl_->sse_clients.empty();
+}
+
 void WebServer::push_frame(const std::vector<uint8_t>& jpeg_data) {
     {
         std::lock_guard<std::mutex> lock(impl_->frame_mutex);

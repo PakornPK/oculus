@@ -3,6 +3,7 @@
 #include "oculus/camera/file_camera.hpp"
 #include "oculus/camera/camera_factory.hpp"
 #include "oculus/inference/onnx_inference_engine.hpp"
+#include "oculus/inference/mediapipe_engine.hpp"
 #include "oculus/inference/person_detector.hpp"
 #include "oculus/rom/shoulder_rom_analyzer.hpp"
 #include "oculus/rom/session_manager.hpp"
@@ -34,17 +35,21 @@ void print_usage() {
     std::cout << "Oculus v0.1.0 - Shoulder ROM Analysis\n"
               << "Usage: oculus [options]\n"
               << "  --video <path>    Run demo with video file\n"
+              << "  --camera [id]     Run with webcam (default: 0)\n"
               << "  --model <path>    Pose model (e.g., models/rtmpose-m.onnx)\n"
               << "  --det <path>      Person detector (e.g., models/yolox-s.onnx)\n"
+              << "  --engine <name>   Inference engine: rtmpose (default), mediapipe\n"
               << "  --port <port>     Web server port (default: 8080)\n"
               << "  --diagnose        Run hardware diagnostics\n"
               << "  --help            Show this help\n";
 }
 
 int run_demo(const std::string& video_path, int port,
-             const std::string& model_path, const std::string& det_model_path) {
+             const std::string& model_path, const std::string& det_model_path,
+             const std::string& engine_name = "rtmpose") {
     spdlog::info("=== Oculus Demo Mode ===");
     spdlog::info("Video: {}", video_path);
+    spdlog::info("Engine: {}", engine_name);
     spdlog::info("Pose Model: {}", model_path.empty() ? "(simulated)" : model_path);
     spdlog::info("Detector: {}", det_model_path.empty() ? "(center crop)" : det_model_path);
     spdlog::info("Port: {}", port);
@@ -52,8 +57,44 @@ int run_demo(const std::string& video_path, int port,
     auto hw = HardwareDetector::detect();
     spdlog::info("Platform: {} {}", hw.arch, hw.cpu_model);
 
+    // MediaPipe engine (self-contained: includes its own person detection)
+    std::unique_ptr<MediaPipeEngine> mp_engine;
+    bool use_mediapipe = (engine_name == "mediapipe");
+
     std::unique_ptr<OnnxInferenceEngine> engine;
-    if (!model_path.empty()) {
+    if (use_mediapipe) {
+        mp_engine = std::make_unique<MediaPipeEngine>();
+        // model_path is used as the worker script path
+        // Try multiple paths: relative to binary, relative to cwd
+        std::string script;
+        if (!model_path.empty()) {
+            script = model_path;
+        } else {
+            // Try paths relative to build/ directory
+            std::vector<std::string> candidates = {
+                "../scripts/mediapipe_worker.py",
+                "scripts/mediapipe_worker.py",
+                "../../scripts/mediapipe_worker.py",
+            };
+            for (const auto& c : candidates) {
+                std::ifstream test(c);
+                if (test.good()) { script = c; break; }
+            }
+            if (script.empty()) {
+                spdlog::error("Cannot find mediapipe_worker.py");
+                return 1;
+            }
+        }
+        if (!mp_engine->load_model(script)) {
+            spdlog::error("Failed to configure MediaPipe engine: {}", script);
+            return 1;
+        }
+        if (!mp_engine->start_worker()) {
+            spdlog::error("Failed to start MediaPipe worker");
+            return 1;
+        }
+        spdlog::info("MediaPipe engine ready");
+    } else if (!model_path.empty()) {
         engine = std::make_unique<OnnxInferenceEngine>();
         if (!engine->load_model(model_path)) {
             spdlog::error("Failed to load pose model: {}", model_path);
@@ -67,23 +108,44 @@ int run_demo(const std::string& video_path, int port,
     if (!det_model_path.empty()) {
         if (detector.load_model(det_model_path)) {
             spdlog::info("Person detector loaded");
+            use_detection = true;
         } else {
             spdlog::warn("Person detector failed to load, using center crop");
         }
     }
+    // For MediaPipe: worker handles its own person detection (YOLOX in Python)
+    // No need for C++ PersonDetector when using MediaPipe engine
 
-    FileCamera camera(video_path);
-    camera.set_loop(true);
+    // Camera source: video file or webcam
+    std::unique_ptr<Camera> camera_ptr;
+    bool is_webcam = video_path.substr(0, 7) == "camera:";
 
-    camera.set_loop(true);
+    if (is_webcam) {
+        std::string cam_id = video_path.substr(7);
+        CameraConfig cam_config;
+        cam_config.device = cam_id;
+        cam_config.width = 640;
+        cam_config.height = 480;
+        cam_config.fps = 30;
+        camera_ptr = CameraFactory::create(cam_config);
+        if (!camera_ptr) {
+            spdlog::error("Failed to open webcam: {}", cam_id);
+            return 1;
+        }
+    } else {
+        camera_ptr = CameraFactory::create_file_camera(video_path);
+        static_cast<FileCamera*>(camera_ptr.get())->set_loop(true);
+    }
+
+    Camera& camera = *camera_ptr;
 
     if (!camera.open()) {
-        spdlog::error("Failed to open video: {}", video_path);
+        spdlog::error("Failed to open camera: {}", video_path);
         return 1;
     }
 
-    // Test person detection on first frame
-    if (detector.is_loaded()) {
+    // Test person detection on first frame (skip for MediaPipe — always uses detection)
+    if (!use_mediapipe && detector.is_loaded()) {
         auto test_frame = camera.capture();
         auto test_persons = detector.detect(test_frame, 0.3f);
         if (!test_persons.empty()) {
@@ -145,7 +207,22 @@ int run_demo(const std::string& video_path, int port,
             }
 
             Pose pose;
-            if (engine) {
+            if (use_mediapipe && mp_engine) {
+                // MediaPipe worker handles YOLOX detection + pose internally
+                PoseResult result = mp_engine->infer(frame);
+                if (!result.poses.empty()) {
+                    pose = result.poses[0];
+                    if (frame_count % 30 == 0) {
+                        spdlog::info("Frame {}: MediaPipe detected, {} keypoints",
+                                     frame_count, pose.keypoints.size());
+                    }
+                } else {
+                    pose.keypoints.resize(17);
+                    if (frame_count % 30 == 0) {
+                        spdlog::warn("Frame {}: MediaPipe no detection", frame_count);
+                    }
+                }
+            } else if (engine) {
                 PoseResult result;
                 if (use_detection) {
                     result = engine->infer_with_detection(frame, detector);
@@ -184,25 +261,19 @@ int run_demo(const std::string& video_path, int port,
                 pose.keypoints[4] = {380, 180, 0.8f};
             }
 
-            // Scale keypoints from model space (192x256) to video frame
-            // Using full frame — no crop offset
-            float sx = static_cast<float>(frame.width) / 192.0f;
-            float sy = static_cast<float>(frame.height) / 256.0f;
-
-            for (auto& kp : pose.keypoints) {
-                kp.x = kp.x * sx;
-                kp.y = kp.y * sy;
-            }
+            // Note: when using infer_with_detection(), keypoints are already
+            // in original frame coordinates (scaled inside OnnxInferenceEngine).
+            // No additional scaling needed.
 
             if (frame_count == 0) {
-                spdlog::info("DEBUG: frame={}x{} scale=({:.2f},{:.2f})",
-                    frame.width, frame.height, sx, sy);
+                spdlog::info("DEBUG: frame={}x{}", frame.width, frame.height);
                 for (int i = 5; i <= 10; ++i) {
                     auto& kp = pose.keypoints[i];
                     spdlog::info("  kp[{}] scaled=({:.1f},{:.1f}) conf={:.2f}", i, kp.x, kp.y, kp.confidence);
                 }
             }
 
+            auto t_pp0 = std::chrono::steady_clock::now();
             rom_analyzer.update(pose);
 
             cv::Mat cv_frame(frame.height, frame.width, CV_8UC3, frame.data.data());
@@ -282,11 +353,18 @@ int run_demo(const std::string& video_path, int port,
             }
 
 
-            std::vector<uint8_t> jpeg_buf;
-            cv::imencode(".jpg", bgr_frame, jpeg_buf);
-            server.push_frame(jpeg_buf);
-
+            auto t_enc0 = std::chrono::steady_clock::now();
+            if (server.has_clients()) {
+                std::vector<uint8_t> jpeg_buf;
+                cv::imencode(".jpg", bgr_frame, jpeg_buf);
+                server.push_frame(jpeg_buf);
+            }
             server.update_angles(all_angles);
+            auto t_enc1 = std::chrono::steady_clock::now();
+            if (frame_count % 30 == 0) {
+                spdlog::info("Encode+server: {:.1f}ms",
+                    std::chrono::duration<double, std::milli>(t_enc1-t_enc0).count());
+            }
 
             // Send keypoints + frame dimensions for accurate overlay
             json keypoints_json = json::array();
@@ -302,6 +380,14 @@ int run_demo(const std::string& video_path, int port,
 
             auto rom_result = rom_analyzer.get_result();
             server.update_result(rom_result);
+            auto t_pp1 = std::chrono::steady_clock::now();
+            if (frame_count % 30 == 0) {
+                spdlog::info("Per-frame: {:.1f}ms (ROM {:.1f} + enc {:.1f} + SSE {:.1f})",
+                    std::chrono::duration<double, std::milli>(t_pp1-t_pp0).count(),
+                    std::chrono::duration<double, std::milli>(t_enc0-t_pp0).count(),
+                    std::chrono::duration<double, std::milli>(t_enc1-t_enc0).count(),
+                    std::chrono::duration<double, std::milli>(t_pp1-t_enc1).count());
+            }
 
             // Temporal smoothing: average last 5 frames
             static std::deque<std::unordered_map<std::string, float>> angle_history;
@@ -377,7 +463,7 @@ int run_demo(const std::string& video_path, int port,
                 metrics.get_avg_latency("frame"));
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(33));
+        // No sleep — run at full speed (video mode or realtime)
     }
 
     session_mgr.stop_session();
@@ -409,8 +495,10 @@ int main(int argc, char* argv[]) {
     std::signal(SIGTERM, signal_handler);
 
     std::string video_path;
+    std::string camera_id;
     std::string model_path;
     std::string det_model_path;
+    std::string engine_name = "rtmpose";
     int port = 8080;
     bool diagnose = false;
 
@@ -418,10 +506,17 @@ int main(int argc, char* argv[]) {
         std::string arg = argv[i];
         if (arg == "--video" && i + 1 < argc) {
             video_path = argv[++i];
+        } else if (arg == "--camera") {
+            camera_id = "0";
+            if (i + 1 < argc && argv[i + 1][0] != '-') {
+                camera_id = argv[++i];
+            }
         } else if (arg == "--model" && i + 1 < argc) {
             model_path = argv[++i];
         } else if (arg == "--det" && i + 1 < argc) {
             det_model_path = argv[++i];
+        } else if (arg == "--engine" && i + 1 < argc) {
+            engine_name = argv[++i];
         } else if (arg == "--port" && i + 1 < argc) {
             port = std::stoi(argv[++i]);
         } else if (arg == "--diagnose") {
@@ -433,7 +528,8 @@ int main(int argc, char* argv[]) {
     }
 
     if (diagnose) return run_diagnose();
-    if (!video_path.empty()) return run_demo(video_path, port, model_path, det_model_path);
+    if (!video_path.empty()) return run_demo(video_path, port, model_path, det_model_path, engine_name);
+    if (!camera_id.empty()) return run_demo("camera:" + camera_id, port, model_path, det_model_path, engine_name);
 
     print_usage();
     return 0;

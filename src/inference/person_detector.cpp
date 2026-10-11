@@ -1,4 +1,5 @@
 #include "oculus/inference/person_detector.hpp"
+#include "oculus/inference/inference_backend.hpp"
 #include <onnxruntime_cxx_api.h>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
@@ -18,8 +19,11 @@ struct PersonDetector::Impl {
 };
 
 PersonDetector::PersonDetector() : impl_(std::make_unique<Impl>()) {
-    impl_->session_options.SetGraphOptimizationLevel(ORT_ENABLE_ALL);
-    impl_->session_options.SetIntraOpNumThreads(2);
+    // Use best available backend (CoreML on macOS, CUDA on Jetson, etc.)
+    impl_->session_options = InferenceBackend::create_session_options(2);
+    // On Jetson/Linux: ONNX Runtime auto-selects CUDA/TensorRT if available,
+    // falls back to CPU. No explicit override needed.
+    // Future: add --provider flag to force specific backend.
 }
 
 PersonDetector::~PersonDetector() = default;
@@ -66,14 +70,14 @@ std::vector<PersonBox> PersonDetector::detect(const Frame& frame, float confiden
     cv::Mat padded(impl_->INPUT_SIZE, impl_->INPUT_SIZE, CV_8UC3, cv::Scalar(114, 114, 114));
     resized.copyTo(padded(cv::Rect(pad_x, pad_y, new_w, new_h)));
 
-    // Normalize: /255.0, HWC->CHW (BGR order)
+    // HWC->CHW, raw 0-255 float (YOLOX expects raw pixel values, no normalization)
     std::vector<float> input_tensor(1 * 3 * impl_->INPUT_SIZE * impl_->INPUT_SIZE);
     const int hw = impl_->INPUT_SIZE * impl_->INPUT_SIZE;
     for (int c = 0; c < 3; ++c) {
         for (int h = 0; h < impl_->INPUT_SIZE; ++h) {
             for (int w = 0; w < impl_->INPUT_SIZE; ++w) {
                 input_tensor[c * hw + h * impl_->INPUT_SIZE + w] =
-                    padded.at<cv::Vec3b>(h, w)[c] / 255.0f;
+                    static_cast<float>(padded.at<cv::Vec3b>(h, w)[c]);
             }
         }
     }

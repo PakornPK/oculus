@@ -1,4 +1,5 @@
 #include "oculus/inference/onnx_inference_engine.hpp"
+#include "oculus/inference/inference_backend.hpp"
 #include "oculus/inference/models/rtmpose/rtmpose_preprocessor.hpp"
 #include "oculus/inference/models/rtmpose/rtmpose_postprocessor.hpp"
 #include <spdlog/spdlog.h>
@@ -28,8 +29,8 @@ struct OnnxInferenceEngine::Impl {
 
 OnnxInferenceEngine::OnnxInferenceEngine()
     : impl_(std::make_unique<Impl>()) {
-    impl_->session_options.SetGraphOptimizationLevel(ORT_ENABLE_ALL);
-    impl_->session_options.SetIntraOpNumThreads(4);
+    impl_->session_options = InferenceBackend::create_session_options(4);
+    impl_->backend = InferenceBackend::backend_name();
 }
 
 OnnxInferenceEngine::~OnnxInferenceEngine() = default;
@@ -198,36 +199,46 @@ PoseResult OnnxInferenceEngine::infer_with_detection(
 
     auto result = impl_->postprocessor.process_simcc(simcc_x, simcc_y, frame.timestamp);
 
-    // Scale keypoints back to original frame coordinates
-    // The preprocessor crops around the person bbox, so we need to map back
+    // Replicate preprocessor's crop logic exactly to get the ACTUAL crop region
+    // used for the model input, then map keypoints back through it.
     float bbox_w = person.x2 - person.x1;
     float bbox_h = person.y2 - person.y1;
     float expand_x = bbox_w * 0.2f;
     float expand_y = bbox_h * 0.2f;
 
-    int crop_x = static_cast<int>(std::max(0.0f, person.x1 - expand_x));
-    int crop_y = static_cast<int>(std::max(0.0f, person.y1 - expand_y));
+    int acrop_x = static_cast<int>(std::max(0.0f, person.x1 - expand_x));
+    int acrop_y = static_cast<int>(std::max(0.0f, person.y1 - expand_y));
+    int acrop_w = static_cast<int>(std::min(static_cast<float>(frame.width),
+                   person.x2 + expand_x) - acrop_x);
+    int acrop_h = static_cast<int>(std::min(static_cast<float>(frame.height),
+                   person.y2 + expand_y) - acrop_y);
 
-    // Scale from model input space to crop space
+    // Adjust to model aspect ratio (same as preprocessor)
     float model_aspect = static_cast<float>(RTMPosePreprocessor::INPUT_WIDTH) /
                           RTMPosePreprocessor::INPUT_HEIGHT;
-    float crop_aspect = (bbox_w + 2 * expand_x) / (bbox_h + 2 * expand_y);
-
-    float scale_x, scale_y;
+    float crop_aspect = static_cast<float>(acrop_w) / acrop_h;
     if (crop_aspect > model_aspect) {
-        scale_x = static_cast<float>(crop_x + static_cast<int>(bbox_w + 2 * expand_x)) /
-                  RTMPosePreprocessor::INPUT_WIDTH;
-        scale_y = scale_x;
+        int new_h = static_cast<int>(acrop_w / model_aspect);
+        acrop_y -= (new_h - acrop_h) / 2;
+        acrop_h = new_h;
     } else {
-        scale_y = static_cast<float>(crop_y + static_cast<int>(bbox_h + 2 * expand_y)) /
-                  RTMPosePreprocessor::INPUT_HEIGHT;
-        scale_x = scale_y;
+        int new_w = static_cast<int>(acrop_h * model_aspect);
+        acrop_x -= (new_w - acrop_w) / 2;
+        acrop_w = new_w;
     }
+    acrop_x = std::max(0, acrop_x);
+    acrop_y = std::max(0, acrop_y);
+    acrop_w = std::min(acrop_w, frame.width - acrop_x);
+    acrop_h = std::min(acrop_h, frame.height - acrop_y);
+
+    // Scale from model space (192×256) to adjusted crop, then offset to frame
+    float sx = static_cast<float>(acrop_w) / RTMPosePreprocessor::INPUT_WIDTH;
+    float sy = static_cast<float>(acrop_h) / RTMPosePreprocessor::INPUT_HEIGHT;
 
     for (auto& pose : result.poses) {
         for (auto& kp : pose.keypoints) {
-            kp.x = kp.x * scale_x + crop_x;
-            kp.y = kp.y * scale_y + crop_y;
+            kp.x = kp.x * sx + acrop_x;
+            kp.y = kp.y * sy + acrop_y;
         }
     }
 
